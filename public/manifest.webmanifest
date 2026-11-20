@@ -1,0 +1,14 @@
+{
+  "name": "Karriereplaner",
+  "short_name": "Karriere",
+  "description": "Ziele, Skills und Bewerbungen an einem Ort planen.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f7fb",
+  "theme_color": "#4f46e5",
+  "lang": "de",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
