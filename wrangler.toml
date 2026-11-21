@@ -1,0 +1,18 @@
+name = "tagesheft"
+main = "worker/index.js"
+compatibility_date = "2026-11-01"
+account_id = "babac4f2e3ee3e0f5f61003b32e5ffa9"
+
+# Die App-Dateien werden direkt in den Worker eingebaut (siehe worker/static.js).
+rules = [
+  { type = "Text", globs = ["**/*.html", "**/sync.js", "**/sw.js", "**/*.svg", "**/*.webmanifest"], fallthrough = true },
+  { type = "Data", globs = ["**/*.png"], fallthrough = true },
+]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tagesheft"
+database_id = "abe9c0bd-3a38-4263-b4fe-2ff89bbbea75"
+
+[observability]
+enabled = true

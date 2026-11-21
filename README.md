@@ -1,29 +1,23 @@
-# Karriereplaner
+# Tagesheft
 
-Eine installierbare Web-App (PWA) zur persönlichen Karriereplanung – läuft auf Desktop und Smartphone, auch offline. Alle Daten bleiben lokal auf dem Gerät.
+Persönliche App für den Alltag: Gewohnheiten, Training, Einkauf, Gebetsampel, Geld und Karriere.
+Läuft als installierbare Web-App auf iPhone und iPad und synchronisiert über einen eigenen Server.
 
-## Funktionen
+- **App:** https://tagesheft.davidf3110.workers.dev (Zugangscode nötig)
+- **Frontend:** `public/` – `index.html` (die App), `sync.js` (Verbindung zum Server, offline-fähig), `sw.js` (Offline-Cache)
+- **Backend:** `worker/` – Cloudflare Worker mit D1-Datenbank
+  - `GET /api/sync?since=<ms>` – alle Änderungen seit einem Zeitpunkt
+  - `POST /api/doc` `{c, id, d}` – Dokument schreiben (`d: null` löscht)
+  - `POST /api/batch` `{docs: [{c, id, d}]}` – viele auf einmal
+  - `GET /api/doc?c=&id=` – ein Dokument lesen
+  - `GET /api/cal?from=&to=` – Termine aus dem privaten iCal-Link (`settings/kalender`)
+  - Alle Aufrufe außer `/api/ping` brauchen `Authorization: Bearer <Zugangscode>` (Secret `APP_TOKEN`)
 
-- **Übersicht** – Weg von aktueller Rolle zur Zielrolle, Kennzahlen, anstehende Termine, größte Skill-Lücken
-- **Vision** – Zielrolle, 5-Jahres-Vision, Werte und Stärken
-- **Ziele** – nach Zeithorizont (kurz/mittel/lang), mit Meilensteinen, Fälligkeiten und Fortschritt
-- **Skills** – Ist- vs. Zielniveau (1–5) mit Lernplan
-- **Bewerbungen** – Kanban-Pipeline (Merkliste → Beworben → Interview → Angebot → Abgeschlossen) mit nächsten Schritten
-- **Reflexion** – kurze Journal-Einträge mit Stimmung
-- **Daten** – Export/Import als JSON, Zurücksetzen
-
-## Entwicklung
+## Veröffentlichen
 
 ```bash
 npm install
-npm run dev      # Entwicklungsserver
-npm run build    # Produktions-Build nach dist/
-npm run preview  # Build lokal ansehen
+npx wrangler deploy
 ```
 
-## Als App installieren
-
-Den Inhalt von `dist/` auf einem beliebigen statischen Hosting (z. B. GitHub Pages, Netlify) veröffentlichen, die Seite im Browser öffnen und
-„Zum Home-Bildschirm hinzufügen“ (iOS/Android) bzw. „App installieren“ (Chrome/Edge) wählen.
-
-Tech: React 19, TypeScript, Vite. Speicherung über `localStorage`.
+Datenbank-Schema: `schema.sql` (`npx wrangler d1 execute tagesheft --remote --file schema.sql`).
