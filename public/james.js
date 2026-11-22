@@ -60,18 +60,17 @@ function briefSetup() {
   stLoad();
   const st = J.st || {}, on = !!st.aktiv, code = J.weckCode || '…';
   const u = location.origin + (on ? '/api/briefing.mp3?k=' : '/api/briefing?format=text&k=') + code;
-  const cur = (settings.get('stimme') || {}).voice || st.voice || 'de-DE-ConradNeural';
+  const cur = (settings.get('stimme') || {}).voice || st.voice || '';
   let h = '<section class="card wk-setup"><h3>Morgen-Briefing nach dem Wecker</h3>'
     + '<p class="hint">Wecker wie immer in der Uhr-App stellen. Wenn du ihn stoppst, spricht James, was heute ansteht.</p>';
   h += '<p class="lbl" style="margin:10px 0 0">Stimme</p>';
   if (on) {
-    h += '<p class="hint">Microsoft-Stimme ist aktiv (kostenlos, Region ' + esc(st.region || '') + '). Antippen zum Probehören und Auswählen:</p><div class="vlist">'
+    h += '<p class="hint">Google-Stimme ist aktiv (kostenlos im Gratis-Kontingent). Antippen zum Probehören und Auswählen:</p><div class="vlist">'
       + (st.voices || []).map(([id, n, d]) => '<button data-j="stvoice" data-v="' + id + '" class="' + (id === cur ? 'on' : '') + '"><b>' + (J.stPlay === id ? '■ ' : '▶ ') + esc(n) + '</b><small>' + esc(d) + '</small></button>').join('') + '</div>'
-      + '<div class="row"><button class="sm" data-j="stoff">Microsoft-Stimme entfernen</button></div>';
+      + '<div class="row"><button class="sm" data-j="stoff">Google-Stimme entfernen</button></div>';
   } else {
-    h += '<p class="hint">Für eine natürliche Stimme statt Siri: Schlüssel und Region aus Microsoft Azure (Speech-Dienst, Tarif „Free F0“) hier eintragen. Der Schlüssel bleibt nur auf deinem James-Server.</p>'
-      + '<label class="f">Schlüssel<input id="stkey" type="password" autocomplete="off" placeholder="Schlüssel 1"></label>'
-      + '<label class="f">Region<input id="streg" autocomplete="off" placeholder="z. B. westeurope" value="westeurope"></label>'
+    h += '<p class="hint">Für eine natürliche Stimme statt Siri: den API-Schlüssel aus Google Cloud (Text-to-Speech) hier eintragen. Er bleibt nur auf deinem James-Server.</p>'
+      + '<label class="f">API-Schlüssel<input id="stkey" type="password" autocomplete="off" placeholder="AIza…"></label>'
       + '<div class="row"><button class="pri" data-j="stset">Speichern</button></div>';
   }
   h += '<p class="lbl" style="margin:10px 0 0">Kurzbefehl (einmal einrichten)</p><ol>'
@@ -610,12 +609,12 @@ document.addEventListener('click', (e) => {
   if (a === 'mcpshow') { TH.call('/mcp/code').then((r) => { J.mcpUrl = r.url; render(); }).catch(() => toast('Gerade nicht möglich.')); return; }
   if (a === 'theme') { jSetTheme(b.dataset.v); render(); return; }
   if (a === 'stset') {
-    const key = (document.getElementById('stkey') || {}).value || '', region = (document.getElementById('streg') || {}).value || '';
-    if (!key.trim() || !region.trim()) return toast('Bitte Schlüssel und Region eintragen.');
+    const key = (document.getElementById('stkey') || {}).value || '';
+    if (!key.trim()) return toast('Bitte den API-Schlüssel einfügen.');
     b.textContent = 'Prüfe …';
-    TH.call('/stimme', { method: 'POST', body: JSON.stringify({ key: key.trim(), region: region.trim() }) })
-      .then(() => { J.stLoaded = false; stLoad(); toast('Microsoft-Stimme aktiv'); })
-      .catch(() => { b.textContent = 'Speichern'; toast('Schlüssel oder Region stimmt nicht.'); });
+    TH.call('/stimme', { method: 'POST', body: JSON.stringify({ key: key.trim() }) })
+      .then(() => { J.stLoaded = false; stLoad(); toast('Google-Stimme aktiv'); })
+      .catch((e) => { b.textContent = 'Speichern'; toast('Schlüssel geht nicht: ' + String((e && (e.message || e.code)) || 'bitte prüfen').slice(0, 120)); });
     return;
   }
   if (a === 'stoff') { TH.call('/stimme', { method: 'POST', body: JSON.stringify({ key: '' }) }).then(() => { J.stLoaded = false; stLoad(); }); return; }

@@ -3,7 +3,7 @@
 // Alle /api-Aufrufe brauchen den Zugangscode (Secret APP_TOKEN) als Bearer-Token.
 
 import { calendarEvents } from './ical.js';
-import { speech, probe, azure, voiceOf, checkAzure, VOICES } from './tts.js';
+import { speech, probe, gkey, voices, voiceOf, checkKey } from './tts.js';
 import { serveStatic } from './static.js';
 import { mcp } from './mcp.js';
 import { briefing, geocode, reverseGeocode, todayLocal } from './ai.js';
@@ -163,16 +163,17 @@ async function api(req, env, url) {
     catch (e) { return json({ error: 'tts_failed', message: String(e.message).slice(0, 200) }, 503); }
   }
   if (p === '/api/stimme' && req.method === 'GET') {
-    const a = await azure(env);
-    return json({ aktiv: !!a, region: a ? a.region : '', voice: await voiceOf(env), voices: VOICES });
+    const on = !!(await gkey(env));
+    return json({ aktiv: on, voice: on ? await voiceOf(env) : '', voices: on ? await voices(env) : [] });
   }
   if (p === '/api/stimme' && req.method === 'POST') {
     if (weck) return json({ error: 'unauthorized' }, 401);
     const b = await req.json();
-    if (!b.key) { await env.DB.prepare('DELETE FROM secrets WHERE k=?1').bind('azure').run(); return json({ aktiv: false }); }
-    const key = String(b.key).trim(), region = String(b.region || '').trim().toLowerCase().replace(/\s+/g, '');
-    if (!(await checkAzure(key, region))) return json({ error: 'Schlüssel oder Region stimmt nicht' }, 400);
-    await env.DB.prepare('INSERT OR REPLACE INTO secrets (k,v) VALUES (?1,?2)').bind('azure', JSON.stringify({ key, region })).run();
+    if (!b.key) { await env.DB.prepare('DELETE FROM secrets WHERE k=?1').bind('gtts').run(); await env.KV.delete('gvoices'); return json({ aktiv: false }); }
+    const key = String(b.key).trim(), err = await checkKey(key);
+    if (err) return json({ error: err.slice(0, 200) }, 400);
+    await env.DB.prepare('INSERT OR REPLACE INTO secrets (k,v) VALUES (?1,?2)').bind('gtts', key).run();
+    await env.KV.delete('gvoices');
     return json({ aktiv: true });
   }
 
