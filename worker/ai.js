@@ -194,22 +194,19 @@ export async function briefing(env, { fresh = false, events = null } = {}) {
   if (!fresh) {
     const cached = await one(env, 'reports', id);
     const stale = rep && rep.at && cached && cached.at && Date.parse(rep.at) > Date.parse(cached.at);
-    if (cached && cached.text && cached.v === 7 && !stale) return cached;
+    if (cached && cached.text && cached.v === 8 && !stale) return cached;
   }
   const P = await profile(env);
   const [todos, sessions] = await Promise.all(['todos', 'sessions'].map((c) => all(env, c)));
   const W = await weather(P);
   const d = parse(t);
-  const S = [];
+  let S = [];
   const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).find((x) => x.type === 'hour').value);
   // James spricht: Ich-Form, Butler im Jarvis-Stil, kurz – nur was ansteht. Wechselnde Formulierungen je Tag.
-  const day = Math.floor(Date.parse(t) / 864e5), pick = (a) => a[day % a.length];
+  // Ersatz, falls Claudes Briefing-Text fehlt: schlicht und sachlich.
   const gruss = hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend';
   const dat = `${WDL[d.getUTCDay()]}, der ${d.getUTCDate()}. ${MON[d.getUTCMonth()]}`;
-  S.push(pick([`${gruss}, ${P.name}. James hier. Es ist ${dat}, und ich habe dir den Tag schon zurechtgelegt.`,
-    `${gruss}, ${P.name}. Heute ist ${dat}. Ein guter Tag, um etwas zu bewegen.`,
-    `${gruss}, ${P.name}. Es ist ${dat}. Lass uns kurz durchgehen, was ansteht.`,
-    `${gruss}, ${P.name}. ${dat}. Ich bin bereit, wenn du es bist.`]));
+  S.push(`${gruss}, ${P.name}. Es ist ${dat}.`);
 
   // Wetter
   const w = W || (rep && rep.wetter);
@@ -218,13 +215,13 @@ export async function briefing(env, { fresh = false, events = null } = {}) {
   // Termine: aus dem Tagesbericht (Google Kalender), sonst aus dem iCal-Link
   let tm = (rep && Array.isArray(rep.termine) ? rep.termine : null);
   if (!tm && events) tm = events.filter((e) => !/Arbeit Roche|🏋|🏃|🏊|🇪🇸|🐍|📖|⛪/.test(e.summary)).map((e) => ({ z: e.start.dateTime ? e.start.dateTime.slice(11, 16) : '', n: e.summary }));
-  if (tm && tm.length) S.push(`${pick(['Auf dem Programm steht', 'In deinem Kalender steht heute', 'Für heute geplant ist'])} ${list(tm.slice(0, 4).map((x) => (x.z ? uhr(x.z) + ' ' : '') + x.n))}.`);
+  if (tm && tm.length) S.push(`${'Heute steht an'} ${list(tm.slice(0, 4).map((x) => (x.z ? uhr(x.z) + ' ' : '') + x.n))}.`);
 
   // To-dos
   const open = todos.filter(([, x]) => x.st !== 'done');
   const late = open.filter(([, x]) => x.due && x.due < t), now = open.filter(([, x]) => x.due === t);
-  if (now.length) S.push(`Auf deiner Liste für heute: ${list(now.slice(0, 3).map(([, x]) => x.t))}. Das schaffst du.`);
-  if (late.length) S.push(`${late.length === 1 ? 'Ein To-do wartet' : late.length + ' To-dos warten'} schon etwas länger, nimm dir heute kurz Zeit dafür.`);
+  if (now.length) S.push(`Auf deiner Liste für heute: ${list(now.slice(0, 3).map(([, x]) => x.t))}.`);
+  if (late.length) S.push(`${late.length === 1 ? 'Ein To-do wartet' : late.length + ' To-dos warten'} schon etwas länger.`);
 
   // Wichtige Mails: bevorzugt die Zusammenfassung aus dem Tagesbericht (Claude liest die Mails), sonst kurz aus den Zeilen.
   const mails = ((rep && rep.mails) || []).filter((m) => m && m.w && !/newsletter/i.test(m.w) && !/info|abmelden|montag|erledigt|nichts zu tun|kein handlungsbedarf/i.test(m.a || ''));
@@ -233,16 +230,19 @@ export async function briefing(env, { fresh = false, events = null } = {}) {
 
   // Training laut Plan
   const p = PLAN[d.getUTCDay()], done = sessions.find(([k]) => k === t);
-  if (p !== 'free' && !(done && done[1].type)) S.push(pick([`Laut Plan ist heute ${TN[p]} dran. Das zahlt auf alles andere ein.`, `Sportlich steht heute ${TN[p]} an. Zieh es durch.`, `Dein Trainingsplan sagt ${TN[p]}. Dein zukünftiges Ich wird dir danken.`]));
+  if (p !== 'free' && !(done && done[1].type)) S.push(`Laut Plan ist heute ${TN[p]} dran.`);
 
   // Depot
   const dp = rep && rep.depot;
   if (dp && isFinite(dp.wert)) {
     const f = (v) => String(Math.round(Math.abs(v)));
     let l = `Dein Depot steht bei ${f(dp.wert)} ${dp.cur === 'EUR' ? 'Euro' : 'Franken'}`;
-    if (isFinite(dp.pct) && dp.pct !== 0) l += `, ${dp.pct > 0 ? 'ein Plus' : 'ein Minus'} von ${String(Math.abs(Math.round(dp.pct * 10) / 10)).replace('.', ',')} Prozent. ${dp.pct > 0 ? 'Schön, das läuft' : 'Ruhig bleiben, wir denken langfristig'}`;
+    if (isFinite(dp.pct) && dp.pct !== 0) l += `, ${dp.pct > 0 ? 'ein Plus' : 'ein Minus'} von ${String(Math.abs(Math.round(dp.pct * 10) / 10)).replace('.', ',')} Prozent`;
     S.push(l + '.');
   }
+
+  // Hat Claude im Tagesbericht ein eigenes, frei formuliertes Briefing geschrieben, wird nur das gesprochen.
+  if (rep && typeof rep.sprechtext === 'string' && rep.sprechtext.trim().length > 40) S = [rep.sprechtext.trim()];
 
   // Herrnhuter Losung (nur die Losung, wie im Losungsbuch)
   const L = (await losungHeute(env, t)) || (rep && rep.losung);
@@ -252,7 +252,7 @@ export async function briefing(env, { fresh = false, events = null } = {}) {
   const n = Math.floor(Date.parse(t) / 864e5);
   S.push((rep && (rep.schluss || rep.impuls)) || SCHLUSS[n % SCHLUSS.length]);
   const text = sprech(S.join(' '));
-  const doc = { type: 'james', v: 7, d: t, text, wetter: W, at: new Date().toISOString() };
+  const doc = { type: 'james', v: 8, d: t, text, wetter: W, at: new Date().toISOString() };
   await put(env, 'reports', id, doc);
   return doc;
 }
