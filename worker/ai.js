@@ -194,7 +194,7 @@ export async function briefing(env, { fresh = false, events = null } = {}) {
   if (!fresh) {
     const cached = await one(env, 'reports', id);
     const stale = rep && rep.at && cached && cached.at && Date.parse(rep.at) > Date.parse(cached.at);
-    if (cached && cached.text && cached.v === 4 && !stale) return cached;
+    if (cached && cached.text && cached.v === 5 && !stale) return cached;
   }
   const P = await profile(env);
   const [todos, sessions] = await Promise.all(['todos', 'sessions'].map((c) => all(env, c)));
@@ -203,49 +203,51 @@ export async function briefing(env, { fresh = false, events = null } = {}) {
   const S = [];
   const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).find((x) => x.type === 'hour').value);
   // Kurz und zackig: nur sagen, was ansteht – keine „nichts da“-Sätze.
-  S.push(`${hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend'}, ${P.name}. ${WDL[d.getUTCDay()]}, ${d.getUTCDate()}. ${MON[d.getUTCMonth()]}.`);
+  S.push(`${hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend'}, ${P.name}. Heute ist ${WDL[d.getUTCDay()]}, der ${d.getUTCDate()}. ${MON[d.getUTCMonth()]}.`);
 
   // Wetter
   const w = W || (rep && rep.wetter);
-  if (w) S.push(`${w.lo} bis ${w.hi} Grad, ${w.t}${W && W.regen >= 50 ? ', nimm einen Schirm mit' : ''}.`);
+  if (w) S.push(`Draußen ${w.lo} bis ${w.hi} Grad, ${String(w.t || '').toLowerCase()}${W && W.regen >= 50 ? '. Nimm besser einen Schirm mit' : ''}.`);
 
   // Termine: aus dem Tagesbericht (Google Kalender), sonst aus dem iCal-Link
   let tm = (rep && Array.isArray(rep.termine) ? rep.termine : null);
   if (!tm && events) tm = events.filter((e) => !/Arbeit Roche|🏋|🏃|🏊|🇪🇸|🐍|📖|⛪/.test(e.summary)).map((e) => ({ z: e.start.dateTime ? e.start.dateTime.slice(11, 16) : '', n: e.summary }));
-  if (tm && tm.length) S.push(`${tm.length === 1 ? 'Termin' : 'Termine'}: ${list(tm.slice(0, 4).map((x) => (x.z ? uhr(x.z) + ' ' : '') + x.n))}.`);
+  if (tm && tm.length) S.push(`${tm.length === 1 ? 'Heute steht an' : 'Heute stehen an'}: ${list(tm.slice(0, 4).map((x) => (x.z ? uhr(x.z) + ' ' : '') + x.n))}.`);
 
   // To-dos
   const open = todos.filter(([, x]) => x.st !== 'done');
   const late = open.filter(([, x]) => x.due && x.due < t), now = open.filter(([, x]) => x.due === t);
-  if (now.length) S.push(`Heute fällig: ${list(now.slice(0, 3).map(([, x]) => x.t))}.`);
-  if (late.length) S.push(`${late.length === 1 ? 'Ein To-do ist' : late.length + ' To-dos sind'} überfällig.`);
+  if (now.length) S.push(`Auf deiner Liste für heute: ${list(now.slice(0, 3).map(([, x]) => x.t))}.`);
+  if (late.length) S.push(`${late.length === 1 ? 'Ein To-do ist' : late.length + ' To-dos sind'} schon überfällig, schau da kurz drauf.`);
 
   // Wichtige Mails
   const mails = ((rep && rep.mails) || []).filter((m) => m && m.w && !/newsletter/i.test(m.w) && !/info|abmelden|montag|erledigt|nichts zu tun|kein handlungsbedarf/i.test(m.a || ''));
-  if (mails.length) S.push(`Mails: ${list(mails.slice(0, 3).map((m) => m.w + (m.b ? ', ' + m.b : '')))}.`);
+  // Bevorzugt die menschliche Zusammenfassung aus dem Tagesbericht (Claude liest die Mails), sonst kurz aus den Zeilen.
+  if (rep && typeof rep.mailtext === 'string') { if (rep.mailtext.trim()) S.push(rep.mailtext.trim()); }
+  else if (mails.length) S.push(`In deinen Mails: ${list(mails.slice(0, 3).map((m) => m.w + (m.b ? ' zu ' + m.b : '')))}.`);
 
   // Training laut Plan
   const p = PLAN[d.getUTCDay()], done = sessions.find(([k]) => k === t);
-  if (p !== 'free' && !(done && done[1].type)) S.push(`Training: ${TN[p]}.`);
+  if (p !== 'free' && !(done && done[1].type)) S.push(`Laut Plan ist heute ${TN[p]} dran.`);
 
   // Depot
   const dp = rep && rep.depot;
   if (dp && isFinite(dp.wert)) {
     const f = (v) => String(Math.round(Math.abs(v)));
-    let l = `Depot: ${f(dp.wert)} ${dp.cur === 'EUR' ? 'Euro' : 'Franken'}`;
-    if (isFinite(dp.pct) && dp.pct !== 0) l += `, ${dp.pct > 0 ? 'plus' : 'minus'} ${String(Math.abs(Math.round(dp.pct * 10) / 10)).replace('.', ',')} Prozent`;
+    let l = `Dein Depot steht bei ${f(dp.wert)} ${dp.cur === 'EUR' ? 'Euro' : 'Franken'}`;
+    if (isFinite(dp.pct) && dp.pct !== 0) l += `, ${dp.pct > 0 ? 'ein Plus' : 'ein Minus'} von ${String(Math.abs(Math.round(dp.pct * 10) / 10)).replace('.', ',')} Prozent`;
     S.push(l + '.');
   }
 
   // Herrnhuter Losung (nur die Losung, wie im Losungsbuch)
   const L = (await losungHeute(env, t)) || (rep && rep.losung);
-  if (L && L.text) S.push('Die Losung: ' + L.text.replace(/\bHERR(N?)\b/g, 'Herr$1').replace(/[.\s]*$/, '.'));
+  if (L && L.text) S.push('Die Losung für heute: ' + L.text.replace(/\bHERR(N?)\b/g, 'Herr$1').replace(/[.\s]*$/, '.'));
 
   // Persönlicher Schluss im Jarvis-Stil
   const n = Math.floor(Date.parse(t) / 864e5);
   S.push((rep && (rep.schluss || rep.impuls)) || SCHLUSS[n % SCHLUSS.length]);
   const text = sprech(S.join(' '));
-  const doc = { type: 'james', v: 4, d: t, text, wetter: W, at: new Date().toISOString() };
+  const doc = { type: 'james', v: 5, d: t, text, wetter: W, at: new Date().toISOString() };
   await put(env, 'reports', id, doc);
   return doc;
 }
