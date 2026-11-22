@@ -6,3 +6,5 @@ CREATE TABLE IF NOT EXISTS docs (
   PRIMARY KEY (c, id)
 );
 CREATE INDEX IF NOT EXISTS docs_u ON docs (u);
+-- Geheimnisse (z. B. Anthropic-API-Schlüssel). Wird nie über /api/sync ausgeliefert.
+CREATE TABLE IF NOT EXISTS secrets (k TEXT PRIMARY KEY, v TEXT NOT NULL);
