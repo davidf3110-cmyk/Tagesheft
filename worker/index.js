@@ -58,7 +58,7 @@ async function api(req, env, url) {
   // Der Wecker-Kurzbefehl darf nur das Briefing abrufen, mit eigenem Code (?k=).
   let weck = false;
   const wkKey = url.searchParams.get('k');
-  if ((p === '/api/briefing' || p === '/api/radio' || p === '/api/radio/live' || p === '/api/wecker/jetzt') && wkKey) {
+  if ((p === '/api/briefing' || p === '/api/radio' || p === '/api/radio/live' || p === '/api/wecker/jetzt' || p === '/api/wecker/naechste') && wkKey) {
     const r = await env.DB.prepare('SELECT v FROM secrets WHERE k=?1').bind('weckcode').first();
     weck = !!(r && r.v && r.v.length === wkKey.length && r.v === wkKey);
   }
@@ -168,20 +168,26 @@ async function api(req, env, url) {
     return new Response(r.body, { headers: { 'content-type': 'audio/mpeg', 'cache-control': 'no-store' } });
   }
 
-  // Für die Kurzbefehle-Automationen im Viertelstunden-Takt: „ja“ genau einmal pro Tag zur Weckzeit aus der App.
+  // Nächste Weckzeit als „HH:MM“ (für den Kurzbefehl, der abends automatisch den Wecker stellt), sonst „aus“.
+  // Nächste Weckzeit als „HH:MM“ für den Kurzbefehl „James Wecker stellen“ (oder „aus“). ?t=HH:MM gibt die Zeit aus der App direkt zurück.
+  if (p === '/api/wecker/naechste' && req.method === 'GET') {
+    const tq = (url.searchParams.get('t') || '').trim();
+    if (/^\d{1,2}:\d{2}$/.test(tq) || tq === 'aus') return txt(tq === 'aus' ? 'aus' : tq.padStart(5, '0'));
+    const w = await weckPlan(env);
+    return txt(w.next ? w.next.slice(11, 16) : 'aus');
+  }
+
+  // Für „Wecker wird gestoppt“: „ja“, wenn gerade (−3 bis +30 min) eine James-Weckzeit ist – je Weckzeit nur einmal.
   if (p === '/api/wecker/jetzt' && req.method === 'GET') {
-    const cfg = Object.assign({ wt: '06:30', we: '07:45', days: [0, 1, 2, 3, 4, 5, 6], aktiv: true }, (await getDoc(env, 'settings', 'wecker')) || {});
-    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Zurich', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).map((x) => [x.type, x.value]));
-    const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(parts.weekday);
-    const now = +parts.hour * 60 + +parts.minute;
-    const target = String((wd === 0 || wd === 6) ? cfg.we : cfg.wt).split(':').map(Number);
-    const diff = now - (target[0] * 60 + target[1]);
-    let ja = cfg.aktiv !== false && cfg.days.includes(wd) && diff >= -3 && diff < 13;
-    const key = 'weck-' + todayLocal();
+    const w = await weckPlan(env), now = stampMin(w.nowS);
+    const hit = w.cands.find((c) => { const d = now - stampMin(c); return d >= -3 && d <= 30; });
+    let ja = !!hit;
     if (ja && url.searchParams.get('test') !== '1') {
+      const key = 'weck-' + hit;
       if (await env.KV.get(key)) ja = false; else await env.KV.put(key, '1', { expirationTtl: 60 * 60 * 30 });
     }
-    return new Response(ja ? 'ja' : 'nein', { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
+    if (url.searchParams.get('test') === '1') ja = true;
+    return txt(ja ? 'ja' : 'nein');
   }
 
   if (p === '/api/radio/prepare' && req.method === 'POST') {
@@ -265,6 +271,25 @@ async function todaysEvents(env) {
     const d = new Date(t + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1);
     return await calendarEvents(ics, t, d.toISOString().slice(0, 10));
   } catch (e) { return null; }
+}
+
+const txt = (t) => new Response(t, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
+const stampMin = (st) => Date.UTC(+st.slice(0, 4), +st.slice(5, 7) - 1, +st.slice(8, 10), +st.slice(11, 13), +st.slice(14, 16)) / 60000;
+// Weckplan in Zürcher Zeit: nächste Weckzeit und Kandidaten rund um jetzt (gestern bis morgen), inkl. einmaliger Zeit.
+async function weckPlan(env) {
+  const cfg = Object.assign({ wt: '06:30', we: '07:45', days: [0, 1, 2, 3, 4, 5, 6], aktiv: true }, (await getDoc(env, 'settings', 'wecker')) || {});
+  const P = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).map((x) => [x.type, x.value]));
+  const nowS = P.year + '-' + P.month + '-' + P.day + 'T' + P.hour + ':' + P.minute;
+  const all = [];
+  if (cfg.aktiv !== false) for (let i = -1; i < 8; i++) {
+    const dt = new Date(Date.UTC(+P.year, +P.month - 1, +P.day + i)), d = dt.getUTCDay();
+    if (cfg.days.includes(d)) all.push(dt.toISOString().slice(0, 10) + 'T' + ((d === 0 || d === 6) ? cfg.we : cfg.wt));
+  }
+  const one = String(cfg.einmal || '').replace(' ', 'T');
+  if (/^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test(one)) all.push(one);
+  all.sort();
+  const now = stampMin(nowS);
+  return { nowS, next: all.find((x) => x > nowS) || '', cands: all.filter((x) => Math.abs(stampMin(x) - now) < 120) };
 }
 
 export default {
