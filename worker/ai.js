@@ -39,6 +39,38 @@ async function put(env, c, id, d) {
     .bind(c, id, JSON.stringify(d), u).run();
 }
 
+/* ---------- Herrnhuter Losung (losung.net, wörtlich wie im Losungsbuch) ---------- */
+const ENT = { auml: 'ä', ouml: 'ö', uuml: 'ü', Auml: 'Ä', Ouml: 'Ö', Uuml: 'Ü', szlig: 'ß', quot: '"', amp: '&', apos: "'", lt: '<', gt: '>', nbsp: ' ', bdquo: '„', ldquo: '“', rdquo: '”', lsquo: '‘', rsquo: '’', sbquo: '‚', ndash: '–', mdash: '—', hellip: '…', laquo: '«', raquo: '»' };
+const unent = (x) => x.replace(/&(#\d+|#x[0-9a-f]+|\w+);/gi, (m, e) => e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : +e.slice(1)) : (ENT[e] ?? m));
+export function parseLosung(html) {
+  const m = html.match(/<meta name="description" content="[^"]*?\d{1,2}\.\d{1,2}\.\d{4}:\s*([^"]*?)"/);
+  if (!m) return null;
+  const parts = unent(m[1]).split(' -- ');
+  const head = parts[0], i = head.indexOf(' - ');
+  if (i < 0 || parts.length < 2) return null;
+  const refs = head.slice(0, i).split(' + ');
+  const text = head.slice(i + 3).trim(), lehr = parts[1].trim();
+  if (!text || !refs[0]) return null;
+  return { text, ref: refs[0].trim(), lehr, lehrRef: (refs[1] || '').trim() };
+}
+export async function losungHeute(env, t) {
+  const have = await one(env, 'reports', 'losung-' + t);
+  if (have && have.text) return have;
+  try {
+    const [j, m, d] = t.split('-').map(Number);
+    const r = await fetch(`https://losung.net/?j=${j}&m=${m}&t=${d}`, { headers: { 'user-agent': 'Mozilla/5.0 (James)' } });
+    if (!r.ok) return null;
+    const b = new Uint8Array(await r.arrayBuffer());
+    let html = ''; for (let k = 0; k < b.length; k += 8192) html += String.fromCharCode.apply(null, b.subarray(k, k + 8192));
+    if (/charset=utf-8/i.test(r.headers.get('content-type') || '')) html = new TextDecoder().decode(b);
+    const l = parseLosung(html);
+    if (!l) return null;
+    const doc = Object.assign({ type: 'losung', d: t, quelle: 'losung.net', at: new Date().toISOString() }, l);
+    await put(env, 'reports', 'losung-' + t, doc);
+    return doc;
+  } catch (e) { return null; }
+}
+
 /* ---------- Kontext aus der App ---------- */
 async function profile(env) {
   const p = (await one(env, 'settings', 'profil')) || {};
@@ -195,7 +227,8 @@ export async function briefing(env, { fresh = false, events = null } = {}) {
   }
 
   // Herrnhuter Losung
-  if (rep && rep.losung && rep.losung.text) S.push('Die Losung für heute: ' + rep.losung.text + (rep.losung.ref ? ' – ' + rep.losung.ref + '.' : ''));
+  const L = (await losungHeute(env, t)) || (rep && rep.losung);
+  if (L && L.text) S.push('Die Losung für heute: ' + L.text.replace(/\bHERR(N?)\b/g, 'Herr$1').replace(/[.\s]*$/, '.') + (L.ref ? ' ' + L.ref + '.' : ''));
 
   // Persönlicher Schluss im Jarvis-Stil
   const n = Math.floor(Date.parse(t) / 864e5);

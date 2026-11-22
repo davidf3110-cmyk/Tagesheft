@@ -63,32 +63,23 @@ function openClaude(scope, ask) {
 const openChat = openClaude;
 
 /* ---------- Einstellungen: James ---------- */
-function stLoad() { if (J.stimme == null && !J.stLoad) { J.stLoad = true; Promise.all([TH.call('/stimme'), TH.call('/wecker/code')]).then(([a, c]) => { J.stimme = a.aktiv; J.weckCode = c.code; softRender(); }).catch(() => {}).finally(() => { J.stLoad = false; }); } }
-// Morgen-Briefing nach dem Wecker: natürliche Stimme + Kurzbefehl-Anleitung.
+function stLoad() { if (!J.weckCode && !J.stLoad) { J.stLoad = true; TH.call('/wecker/code').then((c) => { J.weckCode = c.code; softRender(); }).catch(() => {}).finally(() => { J.stLoad = false; }); } }
+// Morgen-Briefing nach dem Uhr-App-Wecker: Kurzbefehl liest es mit der Siri-Stimme vor.
 function briefSetup() {
   stLoad();
-  const code = J.weckCode || '…', mp3 = location.origin + '/api/briefing.mp3?k=' + code, txt = location.origin + '/api/briefing?format=text&k=' + code;
-  const u = J.stimme ? mp3 : txt, cp = J.weckCode ? ' <button class="sm" data-j="copy" data-v="' + esc(u) + '">Kopieren</button>' : '';
+  const u = location.origin + '/api/briefing?format=text&k=' + (J.weckCode || '…');
+  const cp = J.weckCode ? '<div class="row"><button class="pri" data-j="copy" data-v="' + esc(u) + '">Adresse kopieren</button></div>' : '';
   return '<section class="card wk-setup"><h3>Morgen-Briefing nach dem Wecker</h3>'
-    + '<p class="hint">Du stellst den Wecker ganz normal in der Uhr-App. Sobald du ihn stoppst, sagt dir James, was ansteht – Wetter, Termine, To-dos, Mails, Training, Depot, Losung.</p>'
-    + '<div class="row"><button class="pri" data-j="brief">' + (J.speaking ? '■ Stopp' : '▶ Briefing anhören') + '</button></div>'
-    + '<p class="lbl" style="margin:10px 0 0">Stimme</p>'
-    + (J.stimme ? '<p class="hint">✓ Natürliche Stimme ist aktiv (OpenAI, ca. 1 € im Monat). <button class="sm" data-j="stimmeaus">Entfernen</button></p>'
-      : '<p class="hint">Für eine echte, natürliche Stimme statt Siri: auf platform.openai.com → API keys einen Schlüssel erstellen und 5 $ Guthaben aufladen (reicht etwa ein halbes Jahr). Der Schlüssel bleibt nur auf deinem James-Server.</p><div class="row"><input id="stkey" type="password" placeholder="sk-…" autocomplete="off" style="flex:1"><button class="pri" data-j="stimmeset">Speichern</button></div>')
-    + '<p class="lbl" style="margin:10px 0 0">Einmal einrichten (2 Minuten)</p><ol>'
-    + '<li>Kurzbefehle → <b>Automation</b> → <b>+</b> → <b>Wecker</b> → <b>Beliebig</b> (oder nur deinen Morgenwecker) → <b>Wird gestoppt</b> → <b>Sofort ausführen</b> → <b>Neue leere Automation</b>.</li>'
-    + '<li><b>Inhalte von URL abrufen</b> → <code class="wrap">' + esc(u) + '</code>' + cp + '</li>'
-    + (J.stimme ? '<li><b>Ton wiedergeben</b> → „Inhalte von URL“.</li>' : '<li><b>Text sprechen</b> → „Inhalte von URL“, Sprache Deutsch.</li>')
-    + '</ol><p class="hint">Testen: Wecker auf in 1 Minute stellen, Handy sperren, beim Klingeln „Stoppen“.' + (J.stimme ? '' : ' Wenn du später die natürliche Stimme aktivierst, ändert sich die Adresse – dann den Schritt hier neu übernehmen.') + '</p></section>';
-}
-// Briefing abspielen: natürliche Stimme (MP3) wenn aktiv, sonst Gerätestimme.
-function jPlay(fallbackText) {
-  if (J.speaking) { if (J.au) J.au.pause(); if (window.speechSynthesis) speechSynthesis.cancel(); J.speaking = false; return softRender(); }
-  if (!J.stimme || !J.weckCode) return fallbackText ? jSpeak(fallbackText) : jBriefing(false);
-  J.au = J.au || new Audio(); J.au.src = '/api/briefing.mp3?k=' + J.weckCode + '&t=' + Date.now();
-  J.speaking = true; softRender(); toast('James bereitet sich vor …');
-  J.au.onended = J.au.onerror = () => { J.speaking = false; softRender(); };
-  J.au.play().catch(() => { J.speaking = false; softRender(); toast('Abspielen ging nicht.'); });
+    + '<p class="hint">Wecker wie immer in der Uhr-App stellen. Wenn du ihn stoppst, liest Siri dir vor, was heute ansteht – mit der Losung.</p>'
+    + '<p class="lbl" style="margin:10px 0 0">Einmal einrichten</p><ol>'
+    + '<li>Diese Adresse kopieren:</li></ol>' + cp + '<ol start="2">'
+    + '<li>App <b>Kurzbefehle</b> → unten <b>Automation</b> → oben rechts <b>+</b>.</li>'
+    + '<li><b>Wecker</b> wählen → <b>Wird gestoppt</b> und deinen Wecker (oder „Beliebig“) → <b>Sofort ausführen</b> → <b>Weiter</b> → <b>Neue leere Automation</b>.</li>'
+    + '<li>Ins Suchfeld <b>URL</b> tippen → <b>Inhalte von URL abrufen</b>. Auf das blaue Wort „URL“ tippen und die Adresse einfügen.</li>'
+    + '<li>Ins Suchfeld <b>Sprechen</b> tippen → <b>Text sprechen</b>.</li>'
+    + '<li>Bei „Text sprechen“ auf den Pfeil <b>›</b> tippen → <b>Stimme</b> → deine Siri-Stimme wählen. Fehlt sie: Einstellungen → Bedienungshilfen → Gesprochene Inhalte → Stimmen → Deutsch → laden.</li>'
+    + '<li>Oben rechts <b>Fertig</b>.</li></ol>'
+    + '<p class="hint">Heißt ein Punkt bei dir etwas anders, such einfach nach dem fett gedruckten Wort. Testen: Wecker auf in 1 Minute, Handy sperren, „Stoppen“ tippen.</p></section>';
 }
 function jamesSettings() {
   return themeSettings() + briefSetup() + '<section class="card"><h3>Claude-Connector</h3><p class="hint">Damit Claude in der Claude-App und in geplanten Aufgaben direkt mit James arbeitet – über dein Abo, ohne Zusatzkosten. In Claude: Einstellungen → Connectors → Eigenen Connector hinzufügen → Name „James“, diese Adresse einfügen. Die Adresse ist geheim wie ein Passwort.</p>'
@@ -432,9 +423,7 @@ const ym = () => today().slice(0, 7);
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-j]'); if (!b) return;
   const a = b.dataset.j;
-  if (a === 'brief') { const r = reports.get('james-' + today()); if (J.stimme) return jPlay(r && r.text); return r ? jSpeak(r.text) : jBriefing(false); }
-  if (a === 'stimmeset') { const v = (document.getElementById('stkey') || {}).value || ''; if (!v.trim()) return toast('Bitte den Schlüssel einfügen.'); b.textContent = 'Prüfe …'; TH.call('/stimme', { method: 'POST', body: JSON.stringify({ key: v.trim() }) }).then((r) => { J.stimme = r.aktiv; toast('Natürliche Stimme aktiv'); render(); }).catch(() => { b.textContent = 'Speichern'; toast('Schlüssel ungültig oder kein Guthaben.'); }); return; }
-  if (a === 'stimmeaus') { TH.call('/stimme', { method: 'POST', body: JSON.stringify({ key: '' }) }).then(() => { J.stimme = false; render(); }); return; }
+  if (a === 'brief') { const r = reports.get('james-' + today()); return r ? jSpeak(r.text) : jBriefing(false); }
   if (a === 'briefnew') return jBriefing(true);
   if (a === 'chat') return openChat(b.dataset.v);
   // Welt
@@ -617,8 +606,8 @@ document.addEventListener('click', (e) => {
    Herrnhuter Losung (kommt mit dem Tagesbericht: reports/tag-<Datum>.losung)
    ============================================================ */
 function losungCard() {
-  const r = reports.get('tag-' + today()), l = r && r.losung;
-  if (!l || !l.text) return '<section class="card losung"><span class="lbl">Losung heute</span><p class="hint">Die Herrnhuter Losung kommt jeden Morgen mit dem Tagesbericht.</p></section>';
+  const r = reports.get('tag-' + today()), l = reports.get('losung-' + today()) || (r && r.losung);
+  if (!l || !l.text) return '<section class="card losung"><span class="lbl">Losung heute</span><p class="hint">Die Herrnhuter Losung kommt jeden Morgen automatisch.</p></section>';
   return '<section class="card losung"><span class="lbl">Losung heute</span><blockquote>' + esc(l.text) + '<cite>' + esc(l.ref || '') + '</cite></blockquote>'
     + (l.lehr ? '<blockquote class="lt">' + esc(l.lehr) + '<cite>' + esc(l.lehrRef || '') + '</cite></blockquote>' : '')
     + '<small class="src">Herrnhuter Losungen · © Evangelische Brüder-Unität – Herrnhuter Brüdergemeine</small></section>';
