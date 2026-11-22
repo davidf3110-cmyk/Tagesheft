@@ -684,7 +684,6 @@ document.addEventListener('change', (e) => {
   Object.keys(cur).forEach((k) => { if (w[k] == null) w[k] = cur[k]; });
   w[t.dataset.wk] = t.dataset.wk === 'sec' ? +t.value : t.value.trim();
   settings.touch('wecker', 0);
-  if (t.dataset.wk !== 'sec') refreshWecker();
 });
 
 /* ============================================================
