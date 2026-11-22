@@ -533,7 +533,6 @@ function jamesQuick() {
   const k = today(), lg = logged(k), ty = typeOf(k), p = planT(k);
   let label, sub;
   if (lg) { label = doneLine(k).replace(/^\S+\s/, ''); sub = 'Heute erledigt ✓'; }
-  else if (ty) { label = 'Training eintragen'; sub = '(heute: ' + chosenLine(k).replace(/^\S+\s/, '') + ')'; }
   else if (p === 'free') { label = 'Training eintragen'; sub = '(heute frei laut Plan)'; }
   else { label = 'Training eintragen'; sub = '(planmäßig: ' + recLine(k).replace(/^\S+\s/, '') + ')'; }
   const t = lg ? ty : (ty || (p === 'free' ? '' : p));
