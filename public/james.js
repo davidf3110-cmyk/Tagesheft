@@ -31,7 +31,7 @@ function jamesCard() {
     + (J.briefBusy ? 'Stellt dein Briefing zusammen …' : b ? 'Briefing · ' + pad(at.getHours()) + ':' + pad(at.getMinutes()) + ' Uhr' : 'Dein persönlicher Assistent') + '</small></div></div>'
     + '<p>' + (b ? esc(b.text) : 'Ich fasse dir deinen Tag zusammen: Wetter, Termine, To-dos, Training und was heute zählt. Frag mich auch einfach etwas.') + '</p>'
     + '<div class="row"><button class="gold" data-j="brief">' + (b ? (J.speaking ? '■ Stopp' : '▶ Vorlesen') : 'Briefing holen') + '</button>'
-    + (b ? '<button data-j="briefnew">Neu erstellen</button>' : '') + '<button data-j="chat" data-v="james">In Claude fragen</button></div>'
+    + '</div>'
     + '<form class="ask" id="jask" autocomplete="off"><input id="jaskin" placeholder="Frag James …" aria-label="Frag James" enterkeyhint="send"><button type="submit" aria-label="Senden">↑</button></form></section>';
 }
 async function jBriefing(fresh) {
@@ -361,7 +361,7 @@ function karriereView() {
   const last = pl[pl.length - 1];
   let h = '<section class="kr-hero"><span class="eyebrow">Mein Ziel</span><h2>' + esc(k.ziel || 'Ziel festlegen') + '</h2>'
     + (pl.length ? '<div class="kr-prog"><i style="width:' + Math.round(done / total * 100) + '%"></i></div><div class="split"><span>Station <b>' + done + '</b> von ' + total + '</span><span>' + (last ? 'Ziel ca. <b>' + (last.ab_jahr || '') + '</b>' : '') + '</span></div>' : '')
-    + '<div class="row"><button class="gold" data-j="krplan">' + (pl.length ? '↻ Weg neu berechnen' : 'Weg berechnen') + '</button><button data-j="chat" data-v="karriere">Mit Claude sprechen</button></div></section>';
+    + '<div class="row"><button class="gold" data-j="krplan">' + (pl.length ? '↻ Weg neu berechnen' : 'Weg berechnen') + '</button></div></section>';
   // Pfad
   h += '<div class="path2">';
   hist.forEach((s) => { h += '<div class="st2 done"><span class="node">' + (s.flagge || '✓') + '</span><div class="bx"><span class="meta">' + esc([s.von, s.bis].filter(Boolean).join(' – ')) + '</span><b>' + esc(s.rolle || '') + '</b><span class="co">' + esc([s.firma, s.land].filter(Boolean).join(' · ')) + '</span></div></div>'; });

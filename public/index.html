@@ -607,7 +607,7 @@ function mcpMsg(name,e){
     case 'not_granted':case 'capability_disabled':case 'capability_removed':return name+' ist in dieser Ansicht nicht verfügbar. Öffne das Tagesheft in Claude.';
     case 'server_unavailable':return name+' antwortet gerade nicht.';
     case 'tool_error':return name+' meldet einen Fehler: '+String(e.message||'').slice(0,160);
-    case 'no_calendar':return 'Noch kein Kalender verbunden. Tippe oben rechts auf das Zahnrad und füge den privaten iCal-Link aus Google Kalender ein.';
+    case 'no_calendar':return 'Die Termine kommen morgens mit dem Tagesbericht.';
     case 'calendar_failed':return 'Der Kalender-Link funktioniert nicht: '+String(e.message||'').slice(0,120);
     case 'unavailable':return 'Keine Verbindung zum Kalender.';
     default:return name+' konnte gerade nicht geladen werden.';
@@ -799,12 +799,7 @@ function heuteTag(){
       const on=done(k,hb.k),ct=calTime(k,hb),au=hb.k==='gebet'&&autoG(k)&&!ticked(k,hb.k);
       return '<button class="hb '+hb.k+(on?' on':' plan')+'" data-a="hab" data-h="'+hb.k+'" aria-pressed="'+on+'"><span class="e" aria-hidden="true">'+hb.e+'</span><b>'+hb.n+'</b><small>'+(on?(au?'✓ Ampel':'✓'):(ct||'offen'))+'</small></button>';
     }).join('')+'</div>';
-  const x=sess(k),ty=typeOf(k);let tl,ts;
-  if(logged(k)){tl=doneLine(k);ts=ty==='rest'?'eingetragen':'erledigt'+(x&&x.feel?' · Gefühl '+x.feel+'/5':'')}
-  else if(ty){tl=chosenLine(k);ts='noch nichts eingetragen'}
-  else{tl=recLine(k);ts=planT(k)==='free'?'kein Training geplant':'Plan'}
-  if(x&&has(x.kg))ts+=' · '+dec(num(x.kg))+' kg';
-  h+='<button class="trow" data-a="go" data-v="training"><span><b>'+esc(tl)+'</b><small>'+esc(ts)+'</small></span><span class="chev" aria-hidden="true">›</span></button></section>';
+  h+='</section>';
   h+=berichtCard(k);
   return h;
 }
@@ -815,14 +810,6 @@ function berichtCard(k){
   const stand=at&&!isNaN(at)?'Stand '+pad(at.getHours())+':'+pad(at.getMinutes()):k>t?'kommt am Morgen':k===t?'kommt um '+(isWE(k)?'7:45':'6:45'):'';
   let h='<section class="card"><div class="head"><h2>Dein Tag</h2><span class="hint">'+stand+'</span></div>';
   if(neu&&(r.notes||[]).length)h+='<div class="notes">'+r.notes.slice(0,3).map(n=>'<p class="note1">'+inl(n)+'</p>').join('')+'</div>';
-  /* To-dos */
-  const list=tdList(k),later=tdLater(k),openCnt=todos.all().filter(([,x])=>x.st!=='done').length;
-  h+='<div class="sec"><div class="sh"><span class="lbl">To-dos</span><span class="hint">'+openCnt+' offen</span></div>';
-  if(!todos.ready&&MODE==='db'&&!list.length)h+='<p class="hint">Lade …</p>';
-  else if(!list.length)h+='<p class="hint">'+(k===t?'Heute nichts fällig.':'Nichts fällig.')+'</p>';
-  else h+='<div>'+list.map(([id,x])=>tdRow(id,x,k)).join('')+'</div>';
-  if(later.length)h+='<details class="more" id="tdlater"'+(tdLaterOpen?' open':'')+'><summary>Später und ohne Datum ('+later.length+')</summary><div>'+later.map(([id,x])=>tdRow(id,x,k)).join('')+'</div></details>';
-  h+='<form class="add" id="tdform" autocomplete="off"><input id="tdnew" placeholder="Neues To-do'+(k===t?'':' für '+fmtD(k))+'" value="'+esc(tdDraft)+'" data-in="td" aria-label="Neues To-do"><button class="pri plus" type="submit" aria-label="To-do hinzufügen">+</button></form></div>';
   /* Mails */
   h+='<div class="sec"><div class="sh"><span class="lbl">Mails</span>'+(neu&&Array.isArray(r.mails)&&r.mails.length?'<span class="hint">'+r.mails.length+'</span>':'')+'</div>';
   if(neu){
@@ -843,6 +830,7 @@ function calState(s){
   if(!mcp)return '<p class="hint">Termine gibt es nur, wenn du das Tagesheft in Claude öffnest.</p>';
   if(!s||s.st==='loading')return '<p class="hint">Lade …</p>';
   if(s.st==='err'){
+    if(s.code==='no_calendar')return '<p class="hint">Die Termine kommen morgens mit dem Tagesbericht.</p>';
     if(s.code==='shape')return '<p class="msg">Google Calendar hat unerwartete Daten geliefert.</p>';
     const btn=s.code==='approval_required'?'<button data-a="calload">Termine laden</button>':(s.err&&s.err.retryable?'<button data-a="calretry">Neu laden</button>':'');
     return '<p class="msg">'+esc(mcpMsg('Google Calendar',s.err||{code:s.code}))+'</p>'+btn;
@@ -858,7 +846,9 @@ function evRow(e,withDay){
 }
 let calUpOpen=false;
 function termineSec(k){
-  const c=CAL[k],t=today();
+  const c=CAL[k],t=today(),r=reports.get('tag-'+k),rt=r&&Array.isArray(r.termine)?r.termine:null;
+  if((!c||(c.st==='err'&&c.code==='no_calendar'))&&rt!=null)
+    return '<div class="sec"><span class="lbl">Termine</span>'+(rt.length?'<div>'+rt.map(e=>'<div class="ev'+(/Geburtstag/i.test(e.n||'')?' bday':'')+'"><time>'+esc(e.z||'ganztägig')+'</time><span class="t">'+esc(e.n||'')+'</span></div>').join('')+'</div>':'<p class="hint">'+(k===t?'Heute keine Termine.':'Keine Termine.')+'</p>')+'</div>';
   let h='<div class="sec"><span class="lbl">Termine</span>'+calState(c);
   if(c&&c.events){
     const ev=c.events.filter(e=>!ownEv(e));
@@ -890,8 +880,6 @@ function heuteWoche(){
     }).join('')+'<td class="cnt'+(cnt>=tgt?' full':'')+'">'+cnt+'/'+tgt+'</td></tr>';
   });
   h+='</tbody></table></div></section>';
-  h+=repCard(reports.get('woche-'+m),'Wochenplan','Der Wochenplan kommt am Sonntag davor um 16:49.','repw');
-  {const mk=reports.ids().filter(x=>x.startsWith('monat-')).sort().pop();if(mk)h+=repCard(reports.get(mk),'Monats-Check',' ','repm')}
   return h;
 }
 
@@ -1549,7 +1537,7 @@ document.addEventListener('focusout',e=>{
 /* ================= Einstellungen ================= */
 function setHTML(){
   const k=settings.get('kalender')||{};
-  return (window.jamesSettings?jamesSettings():'')+'<section class="card"><h3>Kalender</h3><p class="hint">Damit deine Termine erscheinen: In Google Kalender am Computer unter Einstellungen → dein Kalender → „Privatadresse im iCal-Format“ den Link kopieren und hier einfügen.</p>'
+  return (window.jamesSettings?jamesSettings():'')+'<section class="card"><h3>Kalender</h3><p class="hint">Optional. Ohne Link kommen deine Termine jeden Morgen mit dem Tagesbericht. Für Termine live und für die nächsten 7 Tage: in Safari calendar.google.com öffnen → links unten auf „aA“ → <b>Desktop-Website anfordern</b> → Zahnrad → Einstellungen → links deinen Kalender → <b>Privatadresse im iCal-Format</b> kopieren und hier einfügen.</p>'
     +'<input id="icsin" type="url" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" value="'+esc(k.ics||'')+'" autocapitalize="off" autocorrect="off" spellcheck="false"><div class="row"><button class="pri" data-s="ics">Speichern</button>'+(k.ics?'<button class="danger" data-s="icsdel">Entfernen</button>':'')+'</div></section>'
     +'<section class="card"><h3>Daten</h3><p class="hint">Alles liegt auf deinem eigenen Server und ist zusätzlich auf diesem Gerät gespeichert. '+esc($('#sync').textContent)+'</p><div class="row"><button data-s="sync">Jetzt synchronisieren</button><button data-s="export">Sicherung herunterladen</button></div></section>'
     +'<section class="card"><h3>Gerät</h3><p class="hint">Auf dem iPhone oder iPad: In Safari auf „Teilen“ → „Zum Home-Bildschirm“, dann startet James wie eine App.</p><div class="row"><button class="danger" data-s="logout">Auf diesem Gerät abmelden</button></div></section>';
