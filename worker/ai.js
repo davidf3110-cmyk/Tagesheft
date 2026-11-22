@@ -173,6 +173,19 @@ const SCHLUSS = [
   'Kaffee, Fokus, Wirkung. In dieser Reihenfolge, David.',
 ];
 
+// Uhrzeit so, wie man sie sagt: 9:00 → „um 9 Uhr“, 9:30 → „um 9 Uhr 30“.
+const uhr = (z) => { const [h, m] = String(z).split(':').map(Number); return 'um ' + h + ' Uhr' + (m ? ' ' + m : ''); };
+// Text fürs Vorlesen glätten: keine Gedankenstriche, Emojis, Abkürzungen oder Zeichen, über die die Stimme stolpert.
+function sprech(x) {
+  return x
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, '')
+    .replace(/\s*[–—]\s*/g, ', ').replace(/\s*\/\s*/g, ' oder ')
+    .replace(/°\s*C/g, ' Grad').replace(/\bCHF\b/g, 'Franken').replace(/\bEUR\b/g, 'Euro').replace(/\s&\s/g, ' und ')
+    .replace(/\bz\.\s?B\./g, 'zum Beispiel').replace(/\bbzw\./g, 'beziehungsweise').replace(/\bca\./g, 'circa').replace(/\bNr\./g, 'Nummer')
+    .replace(/(\d)'(\d)/g, '$1$2').replace(/(\d)\.(\d{3})\b/g, '$1$2')
+    .replace(/[„“"»«]/g, '').replace(/\(([^)]*)\)/g, ', $1,')
+    .replace(/\s+,/g, ',').replace(/,\s*,/g, ',').replace(/,\s*\./g, '.').replace(/\s{2,}/g, ' ').trim();
+}
 // Gesprochenes Morgen-Briefing: Termine, To-dos, wichtige Mails, Wetter, Depot – und ein persönlicher Schluss.
 export async function briefing(env, { fresh = false, events = null } = {}) {
   const t = todayLocal();
@@ -181,7 +194,7 @@ export async function briefing(env, { fresh = false, events = null } = {}) {
   if (!fresh) {
     const cached = await one(env, 'reports', id);
     const stale = rep && rep.at && cached && cached.at && Date.parse(rep.at) > Date.parse(cached.at);
-    if (cached && cached.text && cached.v === 3 && !stale) return cached;
+    if (cached && cached.text && cached.v === 4 && !stale) return cached;
   }
   const P = await profile(env);
   const [todos, sessions] = await Promise.all(['todos', 'sessions'].map((c) => all(env, c)));
@@ -189,52 +202,50 @@ export async function briefing(env, { fresh = false, events = null } = {}) {
   const d = parse(t);
   const S = [];
   const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).find((x) => x.type === 'hour').value);
-  S.push(`${hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend'}, ${P.name}. Es ist ${WDL[d.getUTCDay()]}, der ${d.getUTCDate()}. ${MON[d.getUTCMonth()]}.`);
+  // Kurz und zackig: nur sagen, was ansteht – keine „nichts da“-Sätze.
+  S.push(`${hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend'}, ${P.name}. ${WDL[d.getUTCDay()]}, ${d.getUTCDate()}. ${MON[d.getUTCMonth()]}.`);
 
   // Wetter
   const w = W || (rep && rep.wetter);
-  if (w) S.push(`Draußen ${w.lo} bis ${w.hi} Grad, ${w.t}${W && W.regen >= 50 ? ' – nimm einen Schirm mit' : ''}.`);
+  if (w) S.push(`${w.lo} bis ${w.hi} Grad, ${w.t}${W && W.regen >= 50 ? ', nimm einen Schirm mit' : ''}.`);
 
   // Termine: aus dem Tagesbericht (Google Kalender), sonst aus dem iCal-Link
   let tm = (rep && Array.isArray(rep.termine) ? rep.termine : null);
   if (!tm && events) tm = events.filter((e) => !/Arbeit Roche|🏋|🏃|🏊|🇪🇸|🐍|📖|⛪/.test(e.summary)).map((e) => ({ z: e.start.dateTime ? e.start.dateTime.slice(11, 16) : '', n: e.summary }));
-  if (tm && tm.length) S.push(`Heute ${tm.length === 1 ? 'steht ein Termin an' : 'stehen ' + tm.length + ' Termine an'}: ${list(tm.slice(0, 4).map((x) => (x.z ? 'um ' + x.z.replace(':00', '') + ' Uhr ' : '') + x.n))}.`);
-  else if (tm) S.push('Dein Kalender ist heute frei.');
+  if (tm && tm.length) S.push(`${tm.length === 1 ? 'Termin' : 'Termine'}: ${list(tm.slice(0, 4).map((x) => (x.z ? uhr(x.z) + ' ' : '') + x.n))}.`);
 
   // To-dos
   const open = todos.filter(([, x]) => x.st !== 'done');
   const late = open.filter(([, x]) => x.due && x.due < t), now = open.filter(([, x]) => x.due === t);
-  if (now.length) S.push(`Auf deiner Liste für heute: ${list(now.slice(0, 4).map(([, x]) => x.t))}.`);
-  if (late.length) S.push(`${late.length === 1 ? 'Ein To-do ist' : late.length + ' To-dos sind'} überfällig${late.length <= 2 ? ': ' + list(late.map(([, x]) => x.t)) : ''}.`);
-  if (!now.length && !late.length) S.push('Keine fälligen To-dos.');
+  if (now.length) S.push(`Heute fällig: ${list(now.slice(0, 3).map(([, x]) => x.t))}.`);
+  if (late.length) S.push(`${late.length === 1 ? 'Ein To-do ist' : late.length + ' To-dos sind'} überfällig.`);
 
   // Wichtige Mails
-  const mails = ((rep && rep.mails) || []).filter((m) => m && m.w && !/newsletter/i.test(m.w) && !/nur info|abmelden|montag/i.test(m.a || ''));
-  if (mails.length) S.push(`Wichtige Mails: ${list(mails.slice(0, 3).map((m) => m.w + (m.b ? ' wegen ' + m.b : '') + (m.a ? ', ' + m.a : '')))}.`);
-  else if (rep && Array.isArray(rep.mails)) S.push('Keine wichtigen Mails.');
+  const mails = ((rep && rep.mails) || []).filter((m) => m && m.w && !/newsletter/i.test(m.w) && !/info|abmelden|montag|erledigt|nichts zu tun|kein handlungsbedarf/i.test(m.a || ''));
+  if (mails.length) S.push(`Mails: ${list(mails.slice(0, 3).map((m) => m.w + (m.b ? ', ' + m.b : '')))}.`);
 
   // Training laut Plan
   const p = PLAN[d.getUTCDay()], done = sessions.find(([k]) => k === t);
-  if (p !== 'free' && !(done && done[1].type)) S.push(`Training heute: ${TN[p]}.`);
+  if (p !== 'free' && !(done && done[1].type)) S.push(`Training: ${TN[p]}.`);
 
   // Depot
   const dp = rep && rep.depot;
   if (dp && isFinite(dp.wert)) {
-    const f = (v) => Math.round(Math.abs(v)).toLocaleString('de-DE');
-    let l = `Dein Depot steht bei ${f(dp.wert)} ${dp.cur === 'EUR' ? 'Euro' : 'Franken'}`;
-    if (isFinite(dp.diff) && dp.diff !== 0) l += `, ${dp.diff > 0 ? 'plus' : 'minus'} ${f(dp.diff)}` + (isFinite(dp.pct) ? ` oder ${String(Math.abs(Math.round(dp.pct * 10) / 10)).replace('.', ',')} Prozent` : '') + ' seit gestern';
+    const f = (v) => String(Math.round(Math.abs(v)));
+    let l = `Depot: ${f(dp.wert)} ${dp.cur === 'EUR' ? 'Euro' : 'Franken'}`;
+    if (isFinite(dp.pct) && dp.pct !== 0) l += `, ${dp.pct > 0 ? 'plus' : 'minus'} ${String(Math.abs(Math.round(dp.pct * 10) / 10)).replace('.', ',')} Prozent`;
     S.push(l + '.');
   }
 
-  // Herrnhuter Losung
+  // Herrnhuter Losung (nur die Losung, wie im Losungsbuch)
   const L = (await losungHeute(env, t)) || (rep && rep.losung);
-  if (L && L.text) S.push('Die Losung für heute: ' + L.text.replace(/\bHERR(N?)\b/g, 'Herr$1').replace(/[.\s]*$/, '.') + (L.ref ? ' ' + L.ref + '.' : ''));
+  if (L && L.text) S.push('Die Losung: ' + L.text.replace(/\bHERR(N?)\b/g, 'Herr$1').replace(/[.\s]*$/, '.'));
 
   // Persönlicher Schluss im Jarvis-Stil
   const n = Math.floor(Date.parse(t) / 864e5);
   S.push((rep && (rep.schluss || rep.impuls)) || SCHLUSS[n % SCHLUSS.length]);
-  const text = S.join(' ');
-  const doc = { type: 'james', v: 3, d: t, text, wetter: W, at: new Date().toISOString() };
+  const text = sprech(S.join(' '));
+  const doc = { type: 'james', v: 4, d: t, text, wetter: W, at: new Date().toISOString() };
   await put(env, 'reports', id, doc);
   return doc;
 }

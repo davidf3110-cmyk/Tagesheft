@@ -40,18 +40,6 @@ async function jBriefing(fresh) {
   catch (e) { toast('Briefing gerade nicht verfügbar.'); }
   J.briefBusy = false; softRender();
 }
-function jSpeak(text) {
-  if (!('speechSynthesis' in window)) { toast('Vorlesen geht auf diesem Gerät nicht.'); return; }
-  if (J.speaking) { speechSynthesis.cancel(); J.speaking = false; softRender();  return; }
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'de-DE'; u.rate = 1;
-  const vs = speechSynthesis.getVoices().filter((v) => /^de/i.test(v.lang));
-  const pick = vs.find((v) => /premium|enhanced|anna|markus|yannick|helena/i.test(v.name)) || vs[0];
-  if (pick) u.voice = pick;
-  u.onend = u.onerror = () => { J.speaking = false; softRender();  };
-  J.speaking = true; softRender(); 
-  speechSynthesis.speak(u);
-}
 
 /* ---------- Gespräche: in der Claude-App, mit dem James-Connector ---------- */
 const CLAUDE_HINT = ' (Nutze den James-Connector für meine Daten.)';
@@ -425,7 +413,6 @@ document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-j]'); if (!b) return;
   const a = b.dataset.j;
   if (a === 'briefopen') { J.briefOpen = !J.briefOpen; if (J.briefOpen && !reports.get('james-' + today())) jBriefing(false); return softRender(); }
-  if (a === 'brief') { const r = reports.get('james-' + today()); if (r || J.speaking) return jSpeak(r ? r.text : ''); return jBriefing(false).then(() => { const x = reports.get('james-' + today()); if (x) jSpeak(x.text); }); }
   if (a === 'briefnew') return jBriefing(true);
   if (a === 'chat') return openChat(b.dataset.v);
   // Welt
