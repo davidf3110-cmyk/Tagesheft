@@ -16,7 +16,7 @@ Daten liegen als Dokumente in Sammlungen. Wichtigste Felder:
 - shop/<id>: Einkaufsliste {t, done, at}
 - orte/<id>: {n, region, land, cc, lat, lon, war (true = schon bereist), prio, besucht}
 - jobs/<id>: gemerkte Stellen {pos, firma, ort, pass, link, found, frist, note, st}
-- reports/<id>: Berichte. tag-<Datum> = Tagesbericht {type: "tag", d, title, at, text: "", notes: [..], mails: [{w, b, a}], wetter: {t, lo, hi, ort}}; woche-<Montag> = Wochenplan {type: "woche", week, d, title, text (Markdown), at}; monat-<JJJJ-MM> = Monats-Check; james-<Datum> = Morgen-Briefing.
+- reports/<id>: Berichte. tag-<Datum> = Tagesbericht {type: "tag", d, title, at, text: "", notes: [..], mails: [{w, b, a}], wetter: {t, lo, hi, ort}, losung: {text, ref, lehr, lehrRef} (Herrnhuter Losung und Lehrtext des Tages, wörtlich)}; woche-<Montag> = Wochenplan {type: "woche", week, d, title, text (Markdown), at}; monat-<JJJJ-MM> = Monats-Check; james-<Datum> = Morgen-Briefing.
 - settings/<id>: regeln {text} (Plan & Regeln, zuerst lesen), karriere (Ziel, aktuelle Station, Plan), vorlagen (Gym), lernen, profil, wecker, budget.
 Heute ist ${'${TODAY}'} (Europe/Zurich). Änderungen erscheinen sofort auf Davids iPhone und iPad.`;
 

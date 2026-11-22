@@ -397,7 +397,7 @@ details.more.card summary{font-weight:600;color:var(--ink)}
 <link rel="stylesheet" href="james.css">
 
 <main>
-  <header><div class="htl"><span class="eyebrow" id="hdate"></span><h1 id="ttl">James</h1></div><span class="hrt"><button class="gear" id="alarmbtn" data-j="wecker" aria-label="Wecker"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.8M4.5 5.5l3-2.5M19.5 5.5l-3-2.5"/></svg></button><button class="gear" id="setbtn" aria-label="Einstellungen"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button></span></header>
+  <header><button class="menu-btn" id="menubtn" aria-label="Menü öffnen" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h11M4 17h16"/></svg></button><div class="htl"><span class="eyebrow" id="hdate"></span><h1 id="ttl">James</h1></div></header>
   <p id="banner" class="banner" role="status" hidden></p>
   <div id="jtop"></div>
   <div class="nav" id="navrow"><button data-wk="-1" aria-label="Vorwoche">‹</button><div id="wk"></div><button data-wk="1" aria-label="Nächste Woche">›</button><button id="today">Heute</button></div>
@@ -651,7 +651,7 @@ async function loadCalOnce(){
   render();
 }
 /* ================= Zustand ================= */
-const VIEWS=['heute','todos','training','einkauf','gebet','orte','jobs'];
+const VIEWS=['heute','todos','training','einkauf','gebet','orte','jobs','wecker','einstellungen'];
 let view='heute',sub='tag',sel=today();
 try{const v=localStorage.getItem('th-view');if(VIEWS.includes(v))view=v;const s=localStorage.getItem('th-sub');if(s==='woche')sub='woche'}catch(e){}
 (function(){const h=location.hash.slice(1);if(VIEWS.includes(h))view=h;if(h==='woche'){view='heute';sub='woche'}})();
@@ -980,7 +980,7 @@ function trainOverview(){
   const kgw=agg.map((a,i)=>a.kg.length?'KW '+kw(W[i])+' '+dec(a.kg.reduce((x,y)=>x+y,0)/a.kg.length):'').filter(Boolean);
   return '<details class="card more" id="verlauf"'+(verlaufOpen?' open':'')+'><summary>Verlauf · 8 Wochen</summary><div style="display:grid;gap:12px">'+(kgw.length?'<p class="line"><b>Gewicht Ø</b> '+kgw.join(' · ')+'</p>':'')+ch('Gym-Volumen (kg × Wdh)','g','gym')+ch('Laufen (km)','r','run')+ch('Schwimmen (m)','s','swim')+'</div></details>';
 }
-function trainingView(){return trainHero(weekDays())+trainPanel(sel)+trainRecent()+trainOverview()}
+function trainingView(){return trainHero(weekDays())+trainPanel(sel)+trainRecent()}
 function setTrainType(v){
   const k=sel,before=sess(k)?clone(sess(k)):null,prevT=typeOf(k),x=sessions.edit(k);
   const hadData=before?(hasGym(before)||hasCardio(before)):false;
@@ -1079,7 +1079,7 @@ function gebetView(){
   const {nd,open,r,k,stale}=gQuote(all);
   const wk=weekDays(),t=today(),prayed=wk.filter(x=>done(x,'gebet')).length,past=wk.filter(x=>x<=t).length;
   const pct=v=>(v/150*100).toFixed(3)+'%',bs=r==null?0:Math.min(r,100),mo=r==null?0:Math.max(Math.min(r,150)-100,0);
-  let h='<section class="card s-'+k+'"><div class="head"><h2>Gebetsampel</h2><button class="pri" data-a="gnew">+ Gebet</button></div>'
+  let h=(window.losungCard?losungCard():'')+'<section class="card s-'+k+'"><div class="head"><h2>Gebetsampel</h2><button class="pri" data-a="gnew">+ Gebet</button></div>'
     +'<div class="qrow"><span class="lamp'+(r==null?'':' lit')+'"></span><b class="qval">'+(r==null?'–':r)+'<small>%</small></b><span class="qcount"><strong>'+nd+'</strong> entschieden<br><strong>'+open+'</strong> offen, zählen nicht</span></div>'
     +'<div class="gauge" role="img" aria-label="'+(r==null?'Noch keine Quote':'Erhörungsquote '+r+' Prozent, Skala bis 150 Prozent')+'"><i class="g-base" style="width:'+pct(bs)+'"></i><i class="g-more" style="width:'+pct(mo)+'"></i><i class="g-mark"></i></div>'
     +'<div class="scale" aria-hidden="true"><span style="left:0">0</span><span style="left:33.333%">50</span><span style="left:66.667%">100 %</span><span style="left:100%">150</span></div>'
@@ -1424,7 +1424,7 @@ function render(){
   $('#strip').hidden=noWeek;
   if(!noWeek)$('#strip').innerHTML=stripHTML();
   $('#hdate').textContent=WDL[new Date().getDay()]+', '+new Date().getDate()+'. '+MON[new Date().getMonth()];
-  $('#ttl').textContent=view==='heute'?jamesGreeting():({todos:'To-dos',training:'Training',einkauf:'Einkauf',gebet:'Gebet',orte:'Welt',jobs:'Karriere'}[view]||'James');
+  $('#ttl').textContent=view==='heute'?jamesGreeting():({todos:'To-dos',training:'Training',einkauf:'Einkauf',gebet:'Gebet',orte:'Welt',jobs:'Karriere',wecker:'Wecker',einstellungen:'Einstellungen'}[view]||'James');
   const ae=document.activeElement,keep=ae&&ae.id&&$('#view').contains(ae)?ae.id:'';let pos=null;try{pos=keep?ae.selectionStart:null}catch(e){}
   let h='';
   if(view==='heute')h=sub==='woche'?heuteWoche():heuteTag();
@@ -1434,6 +1434,8 @@ function render(){
   else if(view==='jobs')h=karriereView();
   else if(view==='todos')h=todosView();
   else if(view==='orte')h=weltView();
+  else if(view==='wecker')h=weckerView();
+  else if(view==='einstellungen')h=setHTML();
   else h=heuteTag();
   $('#view').innerHTML=h;
   if(keep){const el=document.getElementById(keep);if(el&&['INPUT','TEXTAREA'].includes(el.tagName)){el.focus();try{if(pos!=null)el.setSelectionRange(pos,pos)}catch(e){}}}
@@ -1546,20 +1548,19 @@ document.addEventListener('focusout',e=>{
 /* ================= Einstellungen ================= */
 function setHTML(){
   const k=settings.get('kalender')||{};
-  return '<div class="head"><h2 id="setTitle">Einstellungen</h2><button data-s="close">Fertig</button></div>'
-    +(window.jamesSettings?jamesSettings():'')+'<section class="card"><h3>Kalender</h3><p class="hint">Damit deine Termine erscheinen: In Google Kalender am Computer unter Einstellungen → dein Kalender → „Privatadresse im iCal-Format“ den Link kopieren und hier einfügen.</p>'
+  return (window.jamesSettings?jamesSettings():'')+'<section class="card"><h3>Kalender</h3><p class="hint">Damit deine Termine erscheinen: In Google Kalender am Computer unter Einstellungen → dein Kalender → „Privatadresse im iCal-Format“ den Link kopieren und hier einfügen.</p>'
     +'<input id="icsin" type="url" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" value="'+esc(k.ics||'')+'" autocapitalize="off" autocorrect="off" spellcheck="false"><div class="row"><button class="pri" data-s="ics">Speichern</button>'+(k.ics?'<button class="danger" data-s="icsdel">Entfernen</button>':'')+'</div></section>'
     +'<section class="card"><h3>Daten</h3><p class="hint">Alles liegt auf deinem eigenen Server und ist zusätzlich auf diesem Gerät gespeichert. '+esc($('#sync').textContent)+'</p><div class="row"><button data-s="sync">Jetzt synchronisieren</button><button data-s="export">Sicherung herunterladen</button></div></section>'
-    +'<section class="card"><h3>Gerät</h3><p class="hint">Auf dem iPhone oder iPad: In Safari auf „Teilen“ → „Zum Home-Bildschirm“, dann startet das Tagesheft wie eine App.</p><div class="row"><button class="danger" data-s="logout">Auf diesem Gerät abmelden</button></div></section>';
+    +'<section class="card"><h3>Gerät</h3><p class="hint">Auf dem iPhone oder iPad: In Safari auf „Teilen“ → „Zum Home-Bildschirm“, dann startet James wie eine App.</p><div class="row"><button class="danger" data-s="logout">Auf diesem Gerät abmelden</button></div></section>';
 }
-function setOpen(){$('#setsheet').innerHTML=setHTML();$('#setov').hidden=false;document.body.classList.add('lock')}
-function setClose(){$('#setov').hidden=true;$('#setsheet').innerHTML='';document.body.classList.remove('lock')}
+function setOpen(){setView('einstellungen')}
+function setClose(){render()}
 document.addEventListener('click',e=>{
   if(e.target.closest('#setbtn'))return setOpen();
   if(e.target.id==='setclose')return setClose();
   const b=e.target.closest('[data-s]');if(!b)return;
   const a=b.dataset.s;
-  if(a==='close')return setClose();
+  if(a==='close')return setView('heute');
   if(a==='ics'){
     const v=($('#icsin').value||'').trim();
     if(!/^(https|webcal):\/\/\S+$/.test(v)){toast('Das ist kein gültiger Link.');return}

@@ -338,3 +338,43 @@ input:focus,textarea:focus,select:focus{background:var(--card);border-color:var(
 @keyframes tdfly{0%,38%{transform:none;opacity:1;max-height:120px}100%{transform:translateX(115%) rotate(3deg);opacity:0;max-height:0;padding-top:0;padding-bottom:0;margin:0;border-width:0}}
 .seg2.three{grid-template-columns:repeat(3,1fr)}
 .mcpurl{display:block;background:var(--soft);border-radius:10px;padding:8px 10px;font-size:12.5px;word-break:break-all}
+
+/* ============================================================
+   Seitenmenü statt unterer Leiste
+   ============================================================ */
+.tabbar{display:none!important}
+main{padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
+header{display:flex;align-items:center;justify-content:flex-start;gap:14px;flex-wrap:nowrap}
+.menu-btn{width:46px;height:46px;min-height:46px;padding:0;border-radius:16px;background:var(--card);box-shadow:var(--shadow);display:grid;place-items:center;flex:none;color:var(--ink)}
+.menu-btn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+#drawer{position:fixed;inset:0;z-index:70;pointer-events:none}
+#drawer .dr-back{position:absolute;inset:0;background:rgba(5,5,7,.45);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);opacity:0;transition:opacity .25s}
+#drawer .dr{position:absolute;top:0;bottom:0;left:0;width:min(300px,82vw);background:var(--bg);box-shadow:var(--shadow-lift);
+  padding:calc(16px + env(safe-area-inset-top,0px)) 12px calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:4px;
+  transform:translateX(-105%);transition:transform .32s var(--ease);overflow-y:auto}
+#drawer.open{pointer-events:auto}
+#drawer.open .dr-back{opacity:1}
+#drawer.open .dr{transform:none}
+.dr-top{display:flex;align-items:center;gap:12px;padding:4px 6px 16px}
+.dr-top .orb{width:34px;height:34px}
+.dr-top b{flex:1;font-size:20px;letter-spacing:-.02em}
+.dr-top button{width:38px;height:38px;min-height:38px;padding:0;border-radius:50%;background:var(--card);box-shadow:var(--shadow)}
+.dr>button{display:flex;align-items:center;gap:14px;background:none;border-radius:16px;min-height:52px;padding:10px 14px;font-size:16.5px;font-weight:600;color:var(--mute);text-align:left}
+.dr>button svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.dr>button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+.dr>button.on svg{color:var(--gold)}
+.dr hr{border:0;border-top:1px solid var(--line);margin:10px 8px}
+.wkpage{display:grid;gap:14px}
+@media (min-width:1100px){ /* iPad quer: Menü bleibt sichtbar */
+  #drawer{pointer-events:auto;inset:0 auto 0 0;width:260px}
+  #drawer .dr-back{display:none}
+  #drawer .dr{transform:none;width:260px;box-shadow:none;border-right:1px solid var(--line)}
+  #drawer .dr-top button{display:none}
+  body{padding-left:260px}
+  .menu-btn{display:none}
+}
+.losung{gap:10px;background:linear-gradient(160deg,color-mix(in srgb,var(--gold) 12%,var(--card)),var(--card) 60%)}
+.losung blockquote{margin:0;font-family:"New York","Iowan Old Style",Georgia,serif;font-size:18px;line-height:1.5;letter-spacing:-.005em}
+.losung blockquote.lt{font-size:16px;color:var(--mute)}
+.losung cite{display:block;font-family:var(--f-ui);font-style:normal;font-size:13px;font-weight:650;color:var(--gold);margin-top:6px}
+.losung .src{font-size:11px;color:var(--mute)}

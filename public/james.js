@@ -8,6 +8,7 @@ const J = { ai: null, briefBusy: false, speaking: false, chat: null, chatBusy: f
   w: { tab: 'globus', q: '', res: [], searching: false, open: '', budget: '', tage: '', monat: '' } };
 
 function jamesInit() {
+  if (matchMedia('(min-width:1100px)').matches) setTimeout(() => menuOpen(true), 0);
   chats = mkStore('chats'); orte = mkStore('orte');
   ALL.push(chats, orte);
   try { const t = localStorage.getItem('james-welt'); if (t === 'liste' || t === 'globus') J.w.tab = t; } catch (e) {}
@@ -169,10 +170,9 @@ function addPlaceCard(war) {
 }
 async function wSearch(war) {
   const q = J.w.q.trim(); if (!q) return;
-  J.w.searching = true; J.w.res = []; render();
+  J.w.searching = true; render();
   try { J.w.res = (await TH.call('/geo?q=' + encodeURIComponent(q))).results || []; } catch (e) { J.w.res = []; toast('Suche gerade nicht möglich.'); }
   J.w.searching = false;
-  if (!J.w.res.length) toast('Nichts gefunden.');
   render();
 }
 
@@ -483,7 +483,7 @@ document.addEventListener('click', (e) => {
     if (a === 'aikey' && !v) return;
     b.disabled = true;
     TH.call('/ai/key', { method: 'POST', body: JSON.stringify({ key: v }) })
-      .then(() => { J.ai = !!v; toast(v ? 'James ist verbunden' : 'Schlüssel entfernt'); const s = document.getElementById('setsheet'); if (s) s.innerHTML = setHTML(); })
+      .then(() => { J.ai = !!v; toast(v ? 'James ist verbunden' : 'Schlüssel entfernt'); render(); })
       .catch((err) => { b.disabled = false; toast(err.message || 'Der Schlüssel funktioniert nicht.'); });
     return;
   }
@@ -539,6 +539,7 @@ document.addEventListener('submit', (e) => {
 document.addEventListener('input', (e) => {
   const t = e.target;
   if (t.dataset.wi) J.w[t.dataset.wi] = t.value;
+  if (t.dataset.wi === 'q') { clearTimeout(J.w.tq); const war = t.closest('form') && t.closest('form').dataset.war === '1'; J.w.tq = setTimeout(() => { if (J.w.q.trim().length >= 2) wSearch(war); else { J.w.res = []; render(); } }, 450); }
   if (t.dataset.kf) {
     const k = settings.edit('karriere'), f = t.dataset.kf;
     if (f.startsWith('a.')) { k.aktuell = k.aktuell || {}; k.aktuell[f.slice(2)] = t.value; } else k[f] = t.value;
@@ -670,21 +671,56 @@ function weckerHTML() {
     + '<p class="hint">Am Anfang zur Sicherheit einen normalen Wecker 10 Minuten später stellen, bis du dem Ablauf vertraust. Musik und Ansage laufen auch bei stumm geschaltetem iPhone, im Schlafmodus solltest du in „Fokus“ die Kurzbefehle-App zulassen.</p></section>';
   return h + '</div>';
 }
-function openWecker() {
-  let el = document.getElementById('wecker');
-  if (!el) { el = document.createElement('div'); el.id = 'wecker'; el.className = 'chatlike'; document.body.appendChild(el); }
-  document.body.classList.add('lock');
-  el.innerHTML = weckerHTML();
-  if (!J.weckCode) TH.call('/wecker/code').then((r) => { J.weckCode = r.code; const e = document.getElementById('wecker'); if (e) { const st = e.querySelector('.ch-body').scrollTop; e.innerHTML = weckerHTML(); e.querySelector('.ch-body').scrollTop = st; } }).catch(() => {});
+function weckerView() {
+  if (!J.weckCode && !J.weckLoading) { J.weckLoading = true; TH.call('/wecker/code').then((r) => { J.weckCode = r.code; if (view === 'wecker') render(); }).catch(() => {}).finally(() => { J.weckLoading = false; }); }
+  const html = weckerHTML(), k = html.indexOf('<div class="ch-body wk">');
+  return '<div class="wk wkpage">' + html.slice(k + '<div class="ch-body wk">'.length, -'</div>'.length) + '</div>';
 }
-function refreshWecker() { const e = document.getElementById('wecker'); if (!e) return; const st = e.querySelector('.ch-body').scrollTop; e.innerHTML = weckerHTML(); e.querySelector('.ch-body').scrollTop = st; }
-function closeWecker() { const el = document.getElementById('wecker'); if (el) el.remove(); document.body.classList.remove('lock'); softRender(); }
+function openWecker() { setView('wecker'); }
+function refreshWecker() { if (view === 'wecker') render(); }
+function closeWecker() { setView('heute'); }
+
+/* ============================================================
+   Seitenmenü (aus- und einklappbar)
+   ============================================================ */
+const NAV = [['heute', 'James'], ['todos', 'To-dos'], ['training', 'Training'], ['einkauf', 'Einkauf'], ['gebet', 'Gebet'], ['orte', 'Welt'], ['jobs', 'Karriere'], ['-'], ['wecker', 'Wecker'], ['einstellungen', 'Einstellungen']];
+const NAVIC = {
+  wecker: '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.8M4.5 5.5l3-2.5M19.5 5.5l-3-2.5"/></svg>',
+  einstellungen: '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
+};
+function menuOpen(open) {
+  let d = document.getElementById('drawer');
+  if (!d) {
+    d = document.createElement('div'); d.id = 'drawer';
+    d.innerHTML = '<div class="dr-back" data-j="menu"></div><nav class="dr" aria-label="Menü"></nav>';
+    document.body.appendChild(d);
+  }
+  if (open) {
+    d.querySelector('.dr').innerHTML = '<div class="dr-top"><span class="orb"></span><b>James</b><button data-j="menu" aria-label="Menü schließen">✕</button></div>'
+      + NAV.map(([k, l]) => (k === '-' ? '<hr>' : '<button data-j="nav" data-v="' + k + '" class="' + (view === k ? 'on' : '') + '">' + (NAVIC[k] || ICONS[k]) + '<span>' + l + '</span></button>')).join('');
+  }
+  d.classList.toggle('open', !!open);
+  document.body.classList.toggle('lock', !!open && !matchMedia('(min-width:1100px)').matches);
+  const mb = document.getElementById('menubtn'); if (mb) mb.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+document.addEventListener('click', (e) => {
+  if (e.target.closest('#menubtn')) return menuOpen(true);
+  const b = e.target.closest('[data-j="menu"],[data-j="nav"]'); if (!b) return;
+  if (b.dataset.j === 'menu') return menuOpen(false);
+  const wide = matchMedia('(min-width:1100px)').matches;
+  menuOpen(wide); setView(b.dataset.v); if (wide) menuOpen(true);
+});
+// Wischen nach links schließt das Menü
+let drX = null;
+document.addEventListener('touchstart', (e) => { if (e.target.closest('.dr')) drX = e.touches[0].clientX; }, { passive: true });
+document.addEventListener('touchend', (e) => { if (drX != null && e.changedTouches[0].clientX - drX < -60) menuOpen(false); drX = null; }, { passive: true });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !matchMedia('(min-width:1100px)').matches) menuOpen(false); });
 
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-j]'); if (!b) return;
   const a = b.dataset.j;
-  if (a === 'mcpshow') { TH.call('/mcp/code').then((r) => { J.mcpUrl = r.url; const st = document.getElementById('setsheet'); if (st) st.innerHTML = setHTML(); }).catch(() => toast('Gerade nicht möglich.')); return; }
-  if (a === 'theme') { jSetTheme(b.dataset.v); const s = document.getElementById('setsheet'); if (s) s.innerHTML = setHTML(); return; }
+  if (a === 'mcpshow') { TH.call('/mcp/code').then((r) => { J.mcpUrl = r.url; render(); }).catch(() => toast('Gerade nicht möglich.')); return; }
+  if (a === 'theme') { jSetTheme(b.dataset.v); render(); return; }
   if (a === 'qtrain') {
     sel = today(); setView('training');
     if (!typeOf(sel) && planT(sel) !== 'free') { const p = planT(sel); setTrainType(p === 'gym' ? 'g' + nextTpl(sel) : p); }
@@ -716,3 +752,14 @@ document.addEventListener('input', (e) => {
   if (t.dataset.wk === 'sec') { const l = t.closest('label'); if (l) l.firstChild.textContent = 'Länge: ' + t.value + ' Sekunden'; }
 });
 document.addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.wk && e.target.dataset.wk !== 'sec') refreshWecker(); });
+
+/* ============================================================
+   Herrnhuter Losung (kommt mit dem Tagesbericht: reports/tag-<Datum>.losung)
+   ============================================================ */
+function losungCard() {
+  const r = reports.get('tag-' + today()), l = r && r.losung;
+  if (!l || !l.text) return '<section class="card losung"><span class="lbl">Losung heute</span><p class="hint">Die Herrnhuter Losung kommt jeden Morgen mit dem Tagesbericht.</p></section>';
+  return '<section class="card losung"><span class="lbl">Losung heute</span><blockquote>' + esc(l.text) + '<cite>' + esc(l.ref || '') + '</cite></blockquote>'
+    + (l.lehr ? '<blockquote class="lt">' + esc(l.lehr) + '<cite>' + esc(l.lehrRef || '') + '</cite></blockquote>' : '')
+    + '<small class="src">Herrnhuter Losungen · © Evangelische Brüder-Unität – Herrnhuter Brüdergemeine</small></section>';
+}

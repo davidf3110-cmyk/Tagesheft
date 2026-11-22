@@ -338,6 +338,8 @@ export async function briefing(env, { useAi = true, fresh = false, events = null
   let g = 0, n = 0;
   for (let k = mon; k < t; k = addD(k, 1)) { n++; if (dmap[k] && dmap[k].h && dmap[k].h.gebet) g++; }
   if (n) S.push(`Gebetet an ${g} von ${n} Tagen dieser Woche.`);
+  const rep = await one(env, 'reports', 'tag-' + t);
+  if (rep && rep.losung && rep.losung.text) S.push('Die Losung für heute: ' + rep.losung.text + (rep.losung.ref ? ' – ' + rep.losung.ref + '.' : ''));
   S.push('Ich wünsch dir einen guten Tag.');
   let text = S.join(' ');
   let ai = false;
@@ -347,7 +349,7 @@ export async function briefing(env, { useAi = true, fresh = false, events = null
       const ctx = await lifeContext(env, 'james');
       text = await ask(env, {
         system: [{ type: 'text', text: PERSONA }, { type: 'text', text: 'Davids Daten:\n' + ctx }],
-        messages: [{ role: 'user', content: 'Formuliere aus diesen Fakten mein gesprochenes Morgen-Briefing, wie ein persönlicher Butler: warm, ruhig, auf den Punkt, höchstens 110 Wörter, ganze Sätze ohne Listen, Aufzählungszeichen oder Emojis (es wird vorgelesen). Nenne nur, was heute wirklich zählt, und schließe mit einem kurzen, konkreten Impuls für den Tag.\n\nFakten:\n' + S.join('\n') }],
+        messages: [{ role: 'user', content: 'Formuliere aus diesen Fakten mein gesprochenes Morgen-Briefing, wie ein persönlicher Butler: warm, ruhig, auf den Punkt, höchstens 110 Wörter, ganze Sätze ohne Listen, Aufzählungszeichen oder Emojis (es wird vorgelesen). Nenne nur, was heute wirklich zählt. Steht eine Losung in den Fakten, gib sie wörtlich mit Bibelstelle wieder. Schließe mit einem kurzen, konkreten Impuls für den Tag.\n\nFakten:\n' + S.join('\n') }],
         effort: 'low', maxTokens: 2000,
       });
       ai = true;
