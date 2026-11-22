@@ -58,7 +58,7 @@ async function api(req, env, url) {
   // Der Wecker-Kurzbefehl darf nur das Briefing abrufen, mit eigenem Code (?k=).
   let weck = false;
   const wkKey = url.searchParams.get('k');
-  if ((p === '/api/briefing' || p === '/api/radio' || p === '/api/radio/live') && wkKey) {
+  if ((p === '/api/briefing' || p === '/api/radio' || p === '/api/radio/live' || p === '/api/wecker/jetzt') && wkKey) {
     const r = await env.DB.prepare('SELECT v FROM secrets WHERE k=?1').bind('weckcode').first();
     weck = !!(r && r.v && r.v.length === wkKey.length && r.v === wkKey);
   }
@@ -168,6 +168,22 @@ async function api(req, env, url) {
     return new Response(r.body, { headers: { 'content-type': 'audio/mpeg', 'cache-control': 'no-store' } });
   }
 
+  // Für die Kurzbefehle-Automationen im Viertelstunden-Takt: „ja“ genau einmal pro Tag zur Weckzeit aus der App.
+  if (p === '/api/wecker/jetzt' && req.method === 'GET') {
+    const cfg = Object.assign({ wt: '06:30', we: '07:45', days: [0, 1, 2, 3, 4, 5, 6], aktiv: true }, (await getDoc(env, 'settings', 'wecker')) || {});
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Zurich', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).map((x) => [x.type, x.value]));
+    const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(parts.weekday);
+    const now = +parts.hour * 60 + +parts.minute;
+    const target = String((wd === 0 || wd === 6) ? cfg.we : cfg.wt).split(':').map(Number);
+    const diff = now - (target[0] * 60 + target[1]);
+    let ja = cfg.aktiv !== false && cfg.days.includes(wd) && diff >= -3 && diff < 13;
+    const key = 'weck-' + todayLocal();
+    if (ja && url.searchParams.get('test') !== '1') {
+      if (await env.KV.get(key)) ja = false; else await env.KV.put(key, '1', { expirationTtl: 60 * 60 * 30 });
+    }
+    return new Response(ja ? 'ja' : 'nein', { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
+  }
+
   if (p === '/api/radio/prepare' && req.method === 'POST') {
     if (weck) return json({ error: 'unauthorized' }, 401);
     await prepareRadio(env, true);
@@ -183,7 +199,7 @@ async function api(req, env, url) {
     const t = todayLocal();
     if (!live) {
       const { value, metadata: m } = await env.KV.getWithMetadata('radio', 'arrayBuffer');
-      if (value && m && m.d === t && m.s === key && m.sec === sec) return new Response(value, { headers: AUDIO });
+      if (value && m && m.s === key && m.sec === sec) return new Response(value, { headers: AUDIO });
     }
     const clip = await radioClip(key, sec);
     if (!clip) return json({ error: 'radio_failed' }, 502);

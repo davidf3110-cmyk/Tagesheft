@@ -539,7 +539,7 @@ function trainRecent() {
    Wecker
    ============================================================ */
 const WD7 = [[1, 'Mo'], [2, 'Di'], [3, 'Mi'], [4, 'Do'], [5, 'Fr'], [6, 'Sa'], [0, 'So']];
-function wk() { return Object.assign({ wt: '06:30', we: '07:45', days: [1, 2, 3, 4, 5, 6, 0], song: '', sec: 30, musik: 'radio', sender: 'srf3' }, settings.get('wecker') || {}); }
+function wk() { return Object.assign({ wt: '06:30', we: '07:45', days: [1, 2, 3, 4, 5, 6, 0], song: '', sec: 30, musik: 'radio', sender: 'srf3', fv: '05:30', fb: '08:30', aktiv: true }, settings.get('wecker') || {}); }
 function spotifyId(u) { const m = String(u || '').match(/track[/:]([A-Za-z0-9]{22})/); return m ? m[1] : ''; }
 function nextAlarm(w) {
   const now = new Date();
@@ -554,39 +554,56 @@ function nextAlarm(w) {
 }
 const MUSIK = { radio: 'Webradio', apple: 'Apple Music', datei: 'Eigene Datei' };
 const SENDER = [['srf3', 'Radio SRF 3'], ['srf1', 'Radio SRF 1'], ['swisspop', 'Swiss Pop'], ['swissjazz', 'Swiss Jazz'], ['swissclassic', 'Swiss Classic'], ['swr3', 'SWR3']];
+const toMin = (s) => { const [h, m] = String(s || '0:0').split(':').map(Number); return h * 60 + m; };
+const fromMin = (m) => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
+function slots(w) { const a = Math.ceil(toMin(w.fv || '05:30') / 15) * 15, b = toMin(w.fb || '08:30'), out = []; for (let m = a; m <= b && out.length < 40; m += 15) out.push(fromMin(m)); return out; }
 function weckerHTML() {
-  const w = wk(), n = nextAlarm(w), code = J.weckCode || '';
-  const bUrl = location.origin + '/api/briefing?format=text&k=' + (code || '…');
-  const rUrl = location.origin + '/api/radio?k=' + (code || '…');
+  const w = wk(), n = w.aktiv === false ? null : nextAlarm(w), code = J.weckCode || '';
+  const base = location.origin + '/api/';
+  const uJetzt = base + 'wecker/jetzt?k=' + (code || '…'), uRadio = base + 'radio?k=' + (code || '…'), uBrief = base + 'briefing?format=text&k=' + (code || '…');
   const diff = n ? Math.round((n - new Date()) / 60000) : 0;
   const sn = (SENDER.find((x) => x[0] === w.sender) || SENDER[0])[1];
+  const sl = slots(w), offGrid = [w.wt, w.we].some((t) => toMin(t) % 15) , outside = [w.wt, w.we].some((t) => toMin(t) < toMin(w.fv || '05:30') || toMin(t) > toMin(w.fb || '08:30'));
+  const cp = (v) => code ? ' <button class="sm" data-j="copy" data-v="' + esc(v) + '">Kopieren</button>' : '';
   let h = '<div class="ch-head"><span class="orb"></span><b>Wecker</b><button data-j="weckclose">Fertig</button></div><div class="ch-body wk">';
-  h += '<section class="wk-hero"><span class="eyebrow">Nächstes Wecken</span><div class="wk-time">' + (n ? pad(n.getHours()) + ':' + pad(n.getMinutes()) : '–') + '</div><span class="wk-sub">' + (n ? WDL[n.getDay()] + ' · in ' + (diff >= 60 ? Math.floor(diff / 60) + ' h ' : '') + (diff % 60) + ' min' : 'Kein Tag aktiv') + '</span>'
+  h += '<section class="wk-hero"><span class="eyebrow">Nächstes Wecken</span><div class="wk-time">' + (n ? pad(n.getHours()) + ':' + pad(n.getMinutes()) : 'Aus') + '</div><span class="wk-sub">' + (n ? WDL[n.getDay()] + ' · in ' + (diff >= 60 ? Math.floor(diff / 60) + ' h ' : '') + (diff % 60) + ' min' : 'Wecker ist ausgeschaltet') + '</span>'
     + '<div class="wk-flow"><span>🎵<small>' + w.sec + ' s ' + (w.musik === 'radio' ? esc(sn) : MUSIK[w.musik]) + '</small></span><i></i><span><span class="orb" style="width:22px;height:22px;display:inline-block"></span><small>James-Briefing</small></span></div></section>';
-  h += '<section class="card wk-night"><h3>Nachttisch-Modus</h3><p class="hint">Der schönste Weg: Am Abend hier aktivieren und James am Ladekabel offen lassen. Zur Weckzeit startet leise das Radio und wird langsam lauter. Sag „Guten Morgen“ (oder tippe), dann wird die Musik leise und James spricht dein Briefing darüber. Die Weckzeit stellst du direkt hier in der App ein.</p><div class="row"><button class="pri" data-j="nightstart">🌙 Nachttisch-Modus starten</button></div></section>';
-  h += '<section class="card"><h3>Weckzeiten</h3><p class="hint">Kein Weckton und kein iPhone-Wecker nötig: Zur Uhrzeit startet die Musik, danach spricht James.</p>'
-    + '<div class="grid2"><label class="f">Werktags<input type="time" value="' + esc(w.wt) + '" data-wk="wt"></label><label class="f">Wochenende<input type="time" value="' + esc(w.we) + '" data-wk="we"></label></div>'
-    + '<div class="chips wk-days">' + WD7.map(([d, l]) => '<button data-j="wkday" data-v="' + d + '" class="' + (w.days.includes(d) ? 'on' : '') + '">' + l + '</button>').join('') + '</div></section>';
+  h += '<section class="card"><div class="head"><h3>Weckzeiten</h3><button class="' + (w.aktiv === false ? '' : 'pri') + ' sm" data-j="wkaktiv">' + (w.aktiv === false ? 'Aus' : 'An') + '</button></div>'
+    + '<div class="grid2"><label class="f">Werktags<input type="time" step="900" value="' + esc(w.wt) + '" data-wk="wt"></label><label class="f">Wochenende<input type="time" step="900" value="' + esc(w.we) + '" data-wk="we"></label></div>'
+    + '<div class="chips wk-days">' + WD7.map(([d, l]) => '<button data-j="wkday" data-v="' + d + '" class="' + (w.days.includes(d) ? 'on' : '') + '">' + l + '</button>').join('') + '</div>'
+    + (offGrid ? '<p class="msg">Bitte eine Viertelstunde wählen (:00, :15, :30, :45) – so oft fragt das iPhone nach.</p>' : '')
+    + (outside ? '<p class="msg">Die Weckzeit liegt außerhalb deines Weckfensters (unten) – dort gibt es keine Automation.</p>' : '')
+    + '<p class="hint">Die Zeit stellst du nur hier ein. Das iPhone fragt James im Viertelstunden-Takt, ob jetzt geweckt wird – auch gesperrt.</p></section>';
   h += '<section class="card"><h3>Musik</h3><div class="seg2 three">' + Object.entries(MUSIK).map(([k, l]) => '<button data-j="wkmus" data-v="' + k + '" class="' + (w.musik === k ? 'on' : '') + '">' + l + '</button>').join('') + '</div>'
-    + (w.musik === 'radio' ? '<div class="chips">' + SENDER.map(([k, l]) => '<button data-j="wksender" data-v="' + k + '" class="' + (w.sender === k ? 'on' : '') + '">' + l + '</button>').join('') + '</div><p class="hint">James nimmt jeden Morgen um 6:15 Uhr die ersten ' + w.sec + ' Sekunden live vom Sender auf – das iPhone spielt sie dann sofort ab, auch gesperrt und ohne Abo.</p><div class="row"><button data-j="wkradiotest">▶ Probehören</button></div><audio id="wkaudio" preload="none"></audio>'
-      : w.musik === 'apple' ? '<p class="hint">Song, Playlist oder Radiosender wählst du im Kurzbefehl aus der Musik-App. Läuft auch gesperrt.</p>'
-      : '<p class="hint">Lege einen Song als MP3 oder M4A in die Dateien-App (iCloud Drive). Läuft gesperrt, ohne Abo und ohne Internet.</p>')
+    + (w.musik === 'radio' ? '<div class="chips">' + SENDER.map(([k, l]) => '<button data-j="wksender" data-v="' + k + '" class="' + (w.sender === k ? 'on' : '') + '">' + l + '</button>').join('') + '</div><div class="row"><button data-j="wkradiotest">▶ Probehören</button></div><audio id="wkaudio" preload="none"></audio>'
+      : w.musik === 'apple' ? '<p class="hint">Song, Playlist oder Radiosender wählst du einmal im Kurzbefehl aus der Musik-App.</p>'
+      : '<p class="hint">Lege einen Song als MP3 oder M4A in die Dateien-App (iCloud Drive).</p>')
     + '<label class="f">Länge: ' + w.sec + ' Sekunden<input type="range" min="10" max="120" step="5" value="' + w.sec + '" data-wk="sec"></label></section>';
-  h += '<section class="card"><h3>Briefing testen</h3><p class="hint">So klingt James morgen früh.</p><div class="row"><button class="pri" data-j="brief">' + (J.speaking ? '■ Stopp' : '▶ Briefing anhören') + '</button></div></section>';
+  h += '<section class="card"><h3>Briefing testen</h3><p class="hint">So klingt James morgen früh: Wetter, Termine, To-dos, Mails, Depot, Losung und ein Satz zum Schluss.</p><div class="row"><button class="pri" data-j="brief">' + (J.speaking ? '■ Stopp' : '▶ Briefing anhören') + '</button></div></section>';
+  // Einrichtung gesperrtes iPhone
   const music = {
-    radio: '<li>Aktion <b>Inhalte von URL abrufen</b> → <code class="wrap">' + esc(rUrl) + '</code> ' + (code ? '<button class="sm" data-j="copy" data-v="' + esc(rUrl) + '">Kopieren</button>' : '') + '</li><li>Aktion <b>Ton wiedergeben</b> (englisch „Play Sound“) → „Inhalte von URL“.</li>',
-    apple: '<li>Aktion <b>Musik wiedergeben</b> → Song, Playlist oder Radiosender auswählen.</li><li>Aktion <b>Warten</b> → ' + w.sec + ' Sekunden, dann <b>Wiedergabe/Pause</b> → „Pause“.</li>',
-    datei: '<li>Aktion <b>Datei abrufen</b> → deine Musikdatei in iCloud Drive („Dokumentauswahl anzeigen“ aus).</li><li>Aktion <b>Ton wiedergeben</b> (englisch „Play Sound“) → „Datei“.</li>',
+    radio: '<li><b>Inhalte von URL abrufen</b> → <code class="wrap">' + esc(uRadio) + '</code>' + cp(uRadio) + '</li><li><b>Ton wiedergeben</b> (englisch „Play Sound“) → „Inhalte von URL“.</li>',
+    apple: '<li><b>Musik wiedergeben</b> → Song, Playlist oder Radiosender wählen.</li><li><b>Warten</b> → ' + w.sec + ' Sekunden, dann <b>Wiedergabe/Pause</b> → „Pause“.</li>',
+    datei: '<li><b>Datei abrufen</b> → deine Musikdatei („Dokumentauswahl anzeigen“ aus).</li><li><b>Ton wiedergeben</b> → „Datei“.</li>',
   }[w.musik];
-  h += '<section class="card wk-setup"><h3>Alternative: Kurzbefehl (ohne offene App)</h3><p class="hint">Läuft auch bei gesperrtem iPhone, aber mit Siri-Stimme und ohne Musik unter der Ansage. Die Uhrzeit stellst du dabei in der Automation ein, nicht hier.</p><ol>'
-    + '<li><b>Kurzbefehle</b> → <b>Automation</b> → <b>+</b> → <b>Tageszeit</b> → ' + esc(w.wt) + ', <b>Wöchentlich</b> an deinen Werktagen → <b>Sofort ausführen</b> → <b>Neuer leerer Kurzbefehl</b>.</li>'
-    + '<li>Aktion <b>Lautstärke festlegen</b> → 35 %.</li>'
-    + music
-    + '<li>Aktion <b>Lautstärke festlegen</b> → 60 %.</li>'
-    + '<li>Aktion <b>Inhalte von URL abrufen</b> → <code class="wrap">' + esc(bUrl) + '</code> ' + (code ? '<button class="sm" data-j="copy" data-v="' + esc(bUrl) + '">Kopieren</button>' : '<button class="sm" data-j="weckcode">Adressen erzeugen</button>') + '</li>'
-    + '<li>Aktion <b>Text sprechen</b> → „Inhalte von URL“, Sprache Deutsch. Mit ▶ unten im Kurzbefehl einmal testen.</li>'
-    + '<li>Fürs Wochenende: zweite Automation um ' + esc(w.we) + ' an Sa und So → „<b>Kurzbefehl ausführen</b>“ → denselben Kurzbefehl wählen.</li></ol>'
-    + '<p class="hint">Am Anfang zur Sicherheit einen normalen Wecker 10 Minuten später stellen, bis du dem Ablauf vertraust. Musik und Ansage laufen auch bei stumm geschaltetem iPhone, im Schlafmodus solltest du in „Fokus“ die Kurzbefehle-App zulassen.</p></section>';
+  h += '<section class="card wk-setup"><h3>Einrichten fürs gesperrte iPhone (einmalig)</h3>'
+    + '<p class="hint">Danach musst du nie wieder in die Kurzbefehle-App: Uhrzeit, Tage, Musik und An/Aus steuerst du hier.</p>'
+    + '<div class="grid2"><label class="f">Weckfenster von<input type="time" step="900" value="' + esc(w.fv || '05:30') + '" data-wk="fv"></label><label class="f">bis<input type="time" step="900" value="' + esc(w.fb || '08:30') + '" data-wk="fb"></label></div>'
+    + '<p class="lbl" style="margin:6px 0 0">A · Kurzbefehl „James Wecken“</p><ol>'
+    + '<li>Kurzbefehle → <b>+</b> → Name „James Wecken“.</li>'
+    + '<li><b>Inhalte von URL abrufen</b> → <code class="wrap">' + esc(uJetzt) + '</code>' + (code ? cp(uJetzt) : ' <button class="sm" data-j="weckcode">Adressen erzeugen</button>') + '</li>'
+    + '<li><b>Wenn</b> „Inhalte von URL“ <b>ist</b> „nein“ → darin <b>Kurzbefehl stoppen</b>. (Ende Wenn)</li>'
+    + '<li><b>Lautstärke festlegen</b> → 35 %.</li>' + music
+    + '<li><b>Lautstärke festlegen</b> → 60 %.</li>'
+    + '<li><b>Inhalte von URL abrufen</b> → <code class="wrap">' + esc(uBrief) + '</code>' + cp(uBrief) + '</li>'
+    + '<li><b>Text sprechen</b> → „Inhalte von URL“, Sprache Deutsch, Stimme: die beste deutsche (z. B. Anna Premium).</li></ol>'
+    + '<p class="lbl" style="margin:6px 0 0">B · ' + sl.length + ' Automationen, je eine pro Viertelstunde</p>'
+    + '<p class="hint">Für jede Zeit: Kurzbefehle → Automation → <b>+</b> → <b>Tageszeit</b> → Zeit, <b>Täglich</b> → <b>Sofort ausführen</b> → Aktion <b>Kurzbefehl ausführen</b> → „James Wecken“. Tipp: die erste fertig machen, dann für die anderen nur die Zeit ändern.</p>'
+    + '<div class="ctry">' + sl.map((t) => '<span>' + t + '</span>').join('') + '</div>'
+    + '<p class="lbl" style="margin:6px 0 0">C · Optional: „Hey Siri, Guten Morgen“</p>'
+    + '<ol><li>Neuer Kurzbefehl mit dem Namen <b>Guten Morgen</b>.</li><li><b>Inhalte von URL abrufen</b> → die Briefing-Adresse von oben, dann <b>Text sprechen</b>.</li></ol>'
+    + '<p class="hint">Dann reicht morgens „Hey Siri, Guten Morgen“ – auch gesperrt. Testen: im Kurzbefehl „James Wecken“ unten ▶ – die erste Adresse antwortet nur zur Weckzeit mit „ja“; zum Ausprobieren hänge vorübergehend <code>&test=1</code> an (dann zählt jede Uhrzeit nahe der Weckzeit).</p></section>';
+  h += '<section class="card wk-night"><h3>Nachttisch-Modus (App offen)</h3><p class="hint">Wenn James über Nacht offen am Ladekabel bleibt: Radio wird langsam lauter, auf „Guten Morgen“ wird es leise und James spricht über die Musik.</p><div class="row"><button data-j="nightstart">🌙 Nachttisch-Modus starten</button></div></section>';
   return h + '</div>';
 }
 function weckerView() {
@@ -657,6 +674,7 @@ document.addEventListener('click', (e) => {
     au.onended = () => { b.textContent = '▶ Probehören'; };
     return;
   }
+  if (a === 'wkaktiv') { const w = settings.edit('wecker'); w.aktiv = wk().aktiv === false; settings.touch('wecker', 0); return refreshWecker(); }
   if (a === 'wkmus') { const w = settings.edit('wecker'); w.musik = b.dataset.v; settings.touch('wecker', 0); return refreshWecker(); }
   if (a === 'weckcode') { TH.call('/wecker/code').then((r) => { J.weckCode = r.code; refreshWecker(); }).catch(() => toast('Gerade nicht möglich.')); return; }
   if (a === 'copy') { const v = b.dataset.v; (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject()).then(() => toast('Kopiert')).catch(() => { prompt('Kopieren:', v); }); return; }

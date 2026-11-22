@@ -149,7 +149,7 @@ export async function briefing(env, { fresh = false, events = null } = {}) {
   if (!fresh) {
     const cached = await one(env, 'reports', id);
     const stale = rep && rep.at && cached && cached.at && Date.parse(rep.at) > Date.parse(cached.at);
-    if (cached && cached.text && cached.v === 2 && !stale) return cached;
+    if (cached && cached.text && cached.v === 3 && !stale) return cached;
   }
   const P = await profile(env);
   const [todos, sessions] = await Promise.all(['todos', 'sessions'].map((c) => all(env, c)));
@@ -194,11 +194,14 @@ export async function briefing(env, { fresh = false, events = null } = {}) {
     S.push(l + '.');
   }
 
+  // Herrnhuter Losung
+  if (rep && rep.losung && rep.losung.text) S.push('Die Losung für heute: ' + rep.losung.text + (rep.losung.ref ? ' – ' + rep.losung.ref + '.' : ''));
+
   // Persönlicher Schluss im Jarvis-Stil
   const n = Math.floor(Date.parse(t) / 864e5);
   S.push((rep && (rep.schluss || rep.impuls)) || SCHLUSS[n % SCHLUSS.length]);
   const text = S.join(' ');
-  const doc = { type: 'james', v: 2, d: t, text, wetter: W, at: new Date().toISOString() };
+  const doc = { type: 'james', v: 3, d: t, text, wetter: W, at: new Date().toISOString() };
   await put(env, 'reports', id, doc);
   return doc;
 }
