@@ -44,14 +44,14 @@ async function jBriefing(fresh) {
 }
 function jSpeak(text) {
   if (!('speechSynthesis' in window)) { toast('Vorlesen geht auf diesem Gerät nicht.'); return; }
-  if (J.speaking) { speechSynthesis.cancel(); J.speaking = false; return softRender(); }
+  if (J.speaking) { speechSynthesis.cancel(); J.speaking = false; softRender(); if (typeof refreshWecker === 'function') refreshWecker(); return; }
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'de-DE'; u.rate = 1;
   const vs = speechSynthesis.getVoices().filter((v) => /^de/i.test(v.lang));
   const pick = vs.find((v) => /premium|enhanced|anna|markus|yannick|helena/i.test(v.name)) || vs[0];
   if (pick) u.voice = pick;
-  u.onend = u.onerror = () => { J.speaking = false; softRender(); };
-  J.speaking = true; softRender();
+  u.onend = u.onerror = () => { J.speaking = false; softRender(); if (typeof refreshWecker === 'function') refreshWecker(); };
+  J.speaking = true; softRender(); if (typeof refreshWecker === 'function') refreshWecker();
   speechSynthesis.speak(u);
 }
 
@@ -112,10 +112,10 @@ async function sendChat(text) {
 
 /* ---------- Einstellungen: James ---------- */
 function jamesSettings() {
-  return '<section class="card"><h3>James</h3><p class="hint">' + (J.ai ? '✓ Verbunden mit Claude. James beantwortet Fragen, plant deine Karriere und formuliert das Briefing.' : 'Für Gespräche, Karriereplanung und das formulierte Briefing braucht James einen Claude-API-Schlüssel. Den bekommst du auf console.anthropic.com → API Keys (geht auch am iPhone). Das einfache Briefing funktioniert auch ohne.') + '</p>'
+  return themeSettings() + '<section class="card"><h3>James</h3><p class="hint">' + (J.ai ? '✓ Verbunden mit Claude. James beantwortet Fragen, plant deine Karriere und formuliert das Briefing.' : 'Für Gespräche, Karriereplanung und das formulierte Briefing braucht James einen Claude-API-Schlüssel. Den bekommst du auf console.anthropic.com → API Keys (geht auch am iPhone). Das einfache Briefing funktioniert auch ohne.') + '</p>'
     + '<input id="aikey" type="password" autocomplete="off" placeholder="' + (J.ai ? 'Neuen Schlüssel eintragen (sk-ant-…)' : 'sk-ant-…') + '" aria-label="Claude-API-Schlüssel"><div class="row"><button class="pri" data-j="aikey">Speichern</button>' + (J.ai ? '<button class="danger" data-j="aikeydel">Entfernen</button>' : '') + '</div>'
     + '<label class="f">Dein Name<input id="pname" value="' + esc(jName()) + '"></label></section>'
-    + '<section class="card"><h3>Wecker mit Briefing</h3><p class="hint">Das Briefing gibt es auch zum Vorlesen per iPhone-Kurzbefehl. Adresse: <b>' + esc(location.origin) + '/api/briefing?format=text</b> mit dem Header „Authorization: Bearer &lt;dein Zugangscode&gt;“. Die Anleitung bekommst du von Claude im Chat.</p></section>';
+    + '<section class="card"><h3>Wecker</h3><p class="hint">Song und James-Briefing zum Aufwachen.</p><div class="row"><button data-j="wecker">Wecker öffnen</button></div></section>';
 }
 
 /* ============================================================
@@ -129,7 +129,7 @@ function weltView() {
   const tab = J.w.tab;
   let h = '<div class="seg2" role="tablist"><button data-j="wtab" data-v="globus" class="' + (tab === 'globus' ? 'on' : '') + '" aria-selected="' + (tab === 'globus') + '">Wo ich war</button><button data-j="wtab" data-v="liste" class="' + (tab === 'liste' ? 'on' : '') + '" aria-selected="' + (tab === 'liste') + '">Wohin als Nächstes</button></div>';
   if (tab === 'globus') {
-    h += '<div class="globe-wrap" id="gw"><canvas id="globe" aria-label="Globus mit deinen Orten"></canvas><div class="gl-legend"><span><i style="background:#E8CF9F"></i>war ich</span><span><i style="background:#fff;opacity:.85"></i>will ich hin</span></div></div>';
+    h += '<div class="globe-wrap" id="gw"><canvas id="globe" aria-label="Globus mit deinen Orten"></canvas><div class="gl-legend"><span><i style="background:#E8CF9F"></i>war ich</span><span><i style="background:#fff;opacity:.85"></i>will ich hin</span></div><div class="gl-zoom"><button data-j="gz" data-v="1.6" aria-label="Hineinzoomen">+</button><button data-j="gz" data-v="0.625" aria-label="Herauszoomen">−</button><button data-j="gz" data-v="0" aria-label="Zurücksetzen">⟲</button></div></div><p class="hint" style="text-align:center;margin-top:-6px">Ziehen zum Drehen, zwei Finger oder Doppeltippen zum Zoomen, Antippen zum Markieren.</p>';
     h += '<div class="wstats"><div class="wstat"><b>' + lands.length + '</b><small>Länder</small></div><div class="wstat"><b>' + war.length + '</b><small>Regionen</small></div><div class="wstat"><b>' + conts.size + '</b><small>Kontinente</small></div></div>';
     h += '<section class="card"><div class="head"><h2>Länder</h2></div><div class="ctry">' + lands.map((l) => { const c = war.find(([, x]) => x.land === l)[1].cc; return '<span>' + flag(c) + ' ' + esc(l) + '</span>'; }).join('') + '</div></section>';
     h += addPlaceCard(true);
@@ -168,17 +168,32 @@ async function wSearch(war) {
   render();
 }
 
-/* ---------- Globus (d3-geo, Canvas) ---------- */
-const G = { lib: null, world: null, rot: [-8, -40, 0], vel: [0.06, 0], drag: null, raf: 0, canvas: null, hit: [], tip: null, last: 0, cKey: '', cSet: null };
+/* ---------- Globus (d3-geo, Canvas): drehen, zoomen, Namen, Orte markieren ---------- */
+const G = { lib: null, world: null, countries: [], cities: [], rot: [-8, -40, 0], k: 1, vel: [0.06, 0], ptr: new Map(), drag: null, pinch: null,
+  raf: 0, canvas: null, hit: [], tip: null, cKey: '', cSet: null, pick: null, pickEl: null, dpr: 1 };
+const KMIN = 0.9, KMAX = 40;
 async function loadGlobeLib() {
   if (G.lib) return G.lib;
   G.lib = (async () => {
     await new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'globe-lib.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
-    const w = await (await fetch('world.json')).json();
+    const [w, x] = await Promise.all([fetch('world.json').then((r) => r.json()), fetch('geo-extra.json').then((r) => r.json())]);
     G.world = topojson.feature(w, w.objects.countries).features;
+    let dn = null; try { dn = new Intl.DisplayNames(['de'], { type: 'region' }); } catch (e) {}
+    G.countries = G.world.map((f) => {
+      const cc = x.ids[String(+f.id)] || '';
+      let name = f.properties.name;
+      try { if (dn && cc) name = dn.of(cc) || name; } catch (e) {}
+      return { f, name, c: d3.geoCentroid(f), a: d3.geoArea(f) };
+    }).sort((a, b) => b.a - a.a);
+    G.cities = x.cities; // [name, lat, lon, pop] nach Größe sortiert
   })();
   return G.lib;
 }
+function gProj(c) {
+  const w = c.width, h = c.height, r = Math.min(w, h) * 0.42 * G.k;
+  return d3.geoOrthographic().scale(r).translate([w / 2, h / 2]).clipAngle(90).rotate(G.rot).precision(0.4);
+}
+function gZoom(f) { G.k = Math.max(KMIN, Math.min(KMAX, G.k * f)); G.vel = [0, 0]; }
 async function mountGlobe() {
   const c = document.getElementById('globe'); if (!c) return;
   try { await loadGlobeLib(); } catch (e) { return; }
@@ -187,41 +202,88 @@ async function mountGlobe() {
   const wrap = c.parentElement;
   const resize = () => { const r = wrap.getBoundingClientRect(), d = Math.min(2, window.devicePixelRatio || 1); c.width = r.width * d; c.height = r.height * d; G.dpr = d; };
   resize();
-  if (!G.tip) { G.tip = document.createElement('div'); G.tip.className = 'gl-tip'; G.tip.hidden = true; }
-  wrap.appendChild(G.tip); G.tip.hidden = true;
-  c.onpointerdown = (e) => { c.setPointerCapture(e.pointerId); G.drag = { x: e.clientX, y: e.clientY, r: G.rot.slice(), t: performance.now(), moved: false }; G.vel = [0, 0]; c.style.cursor = 'grabbing'; };
+  if (!G.tip) { G.tip = document.createElement('div'); G.tip.className = 'gl-tip'; }
+  G.tip.hidden = true; wrap.appendChild(G.tip);
+  const pos = (e) => { const r = c.getBoundingClientRect(); return [(e.clientX - r.left) * G.dpr, (e.clientY - r.top) * G.dpr]; };
+  c.onpointerdown = (e) => {
+    c.setPointerCapture(e.pointerId); G.ptr.set(e.pointerId, [e.clientX, e.clientY]); G.vel = [0, 0];
+    if (G.ptr.size === 2) { const [a, b] = [...G.ptr.values()]; G.pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), k: G.k }; G.drag = null; }
+    else { G.drag = { x: e.clientX, y: e.clientY, r: G.rot.slice(), t: performance.now(), moved: false }; c.style.cursor = 'grabbing'; }
+  };
   c.onpointermove = (e) => {
+    if (!G.ptr.has(e.pointerId)) return;
+    G.ptr.set(e.pointerId, [e.clientX, e.clientY]);
+    if (G.pinch && G.ptr.size === 2) { const [a, b] = [...G.ptr.values()]; G.k = Math.max(KMIN, Math.min(KMAX, G.pinch.k * Math.hypot(a[0] - b[0], a[1] - b[1]) / G.pinch.d)); return; }
     if (!G.drag) return;
-    const k = 0.35, dx = e.clientX - G.drag.x, dy = e.clientY - G.drag.y;
-    if (Math.abs(dx) + Math.abs(dy) > 4) G.drag.moved = true;
-    const nr = [G.drag.r[0] + dx * k, Math.max(-75, Math.min(75, G.drag.r[1] - dy * k)), 0];
+    const s = 0.35 / G.k, dx = e.clientX - G.drag.x, dy = e.clientY - G.drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 5) G.drag.moved = true;
+    const nr = [G.drag.r[0] + dx * s, Math.max(-85, Math.min(85, G.drag.r[1] - dy * s)), 0];
     const now = performance.now(), dt = Math.max(1, now - (G.drag.lt || G.drag.t));
     G.vel = [(nr[0] - G.rot[0]) / dt * 16, (nr[1] - G.rot[1]) / dt * 16];
     G.drag.lt = now; G.rot = nr;
   };
-  c.onpointerup = (e) => {
+  const up = (e) => {
+    G.ptr.delete(e.pointerId);
+    if (G.pinch) { if (G.ptr.size < 2) G.pinch = null; G.drag = null; return; }
     const d = G.drag; G.drag = null; c.style.cursor = 'grab';
-    if (d && !d.moved) { // Antippen: Ort zeigen
-      const r = c.getBoundingClientRect(), x = (e.clientX - r.left) * G.dpr, y = (e.clientY - r.top) * G.dpr;
-      let best = null, bd = 22 * G.dpr;
-      G.hit.forEach((p) => { const dd = Math.hypot(p.x - x, p.y - y); if (dd < bd) { bd = dd; best = p; } });
-      if (best) { G.tip.textContent = flag(best.cc) + ' ' + best.n + (best.war ? '' : ' · Wunschziel'); G.tip.style.left = best.x / G.dpr + 'px'; G.tip.style.top = best.y / G.dpr + 'px'; G.tip.hidden = false; G.vel = [0, 0]; clearTimeout(G.tt); G.tt = setTimeout(() => { G.tip.hidden = true; }, 2600); }
-      else G.tip.hidden = true;
-    }
+    if (!d || d.moved || e.type === 'pointercancel') return;
+    const [x, y] = pos(e);
+    const now = performance.now();
+    if (G.lastTap && now - G.lastTap.t < 300 && Math.hypot(x - G.lastTap.x, y - G.lastTap.y) < 30 * G.dpr) { G.lastTap = null; clearTimeout(G.tapT); gZoom(2); return; }
+    G.lastTap = { t: now, x, y };
+    clearTimeout(G.tapT);
+    G.tapT = setTimeout(() => gTap(x, y, wrap), 260);
   };
+  c.onpointerup = up; c.onpointercancel = up;
+  c.onwheel = (e) => { e.preventDefault(); gZoom(Math.exp(-e.deltaY * 0.0018)); };
   window.removeEventListener('resize', G.onres); G.onres = resize; window.addEventListener('resize', resize);
+  if (G.pick) gPickShow(wrap);
   cancelAnimationFrame(G.raf);
-  const loop = (t) => {
+  const loop = () => {
     if (!document.contains(c)) return;
-    if (!G.drag) {
-      G.vel[0] *= 0.96; G.vel[1] *= 0.92;
-      const idle = Math.abs(G.vel[0]) < 0.05 && G.tip.hidden;
-      G.rot[0] += idle ? 0.05 : G.vel[0]; G.rot[1] = Math.max(-75, Math.min(75, G.rot[1] + G.vel[1]));
+    if (!G.drag && !G.pinch) {
+      G.vel[0] *= 0.95; G.vel[1] *= 0.9;
+      const idle = Math.abs(G.vel[0]) < 0.05 && G.tip.hidden && !G.pick && G.k < 1.4;
+      G.rot[0] += idle ? 0.05 : G.vel[0]; G.rot[1] = Math.max(-85, Math.min(85, G.rot[1] + G.vel[1]));
     }
     drawGlobe(c);
     G.raf = requestAnimationFrame(loop);
   };
   G.raf = requestAnimationFrame(loop);
+}
+function gTap(x, y, wrap) {
+  let best = null, bd = 20 * G.dpr;
+  G.hit.forEach((p) => { const dd = Math.hypot(p.x - x, p.y - y); if (dd < bd) { bd = dd; best = p; } });
+  if (best) {
+    G.tip.textContent = flag(best.cc) + ' ' + best.n + (best.war ? '' : ' · Wunschziel');
+    G.tip.style.left = best.x / G.dpr + 'px'; G.tip.style.top = best.y / G.dpr + 'px'; G.tip.hidden = false;
+    clearTimeout(G.tt); G.tt = setTimeout(() => { G.tip.hidden = true; }, 2600);
+    return;
+  }
+  G.tip.hidden = true;
+  const ll = gProj(G.canvas).invert([x, y]);
+  if (!ll || d3.geoDistance(ll, [-G.rot[0], -G.rot[1]]) > Math.PI / 2) return;
+  G.pick = { lon: ll[0], lat: ll[1], loading: true };
+  gPickShow(wrap);
+  TH.call('/geo/rev?lat=' + ll[1].toFixed(4) + '&lon=' + ll[0].toFixed(4))
+    .then((r) => { if (G.pick && G.pick.lon === ll[0]) { Object.assign(G.pick, r.place || {}, { loading: false, none: !r.place }); gPickShow(); } })
+    .catch(() => { if (G.pick) { G.pick.loading = false; G.pick.none = true; gPickShow(); } });
+}
+function gPickShow(wrap) {
+  wrap = wrap || (G.canvas && G.canvas.parentElement); if (!wrap) return;
+  if (!G.pickEl) { G.pickEl = document.createElement('div'); G.pickEl.className = 'gl-pick'; }
+  if (!G.pick) { G.pickEl.remove(); return; }
+  const p = G.pick;
+  G.pickEl.innerHTML = p.loading ? '<div class="busyline"><span class="orb busy"></span>Welcher Ort ist das …</div>'
+    : p.none ? '<b>Hier ist kein Ort</b><small>Tippe auf Land, um es zu markieren.</small><div class="row"><button data-j="gpx">Schließen</button></div>'
+    : '<b>' + flag(p.cc) + ' ' + esc(p.n) + '</b><small>' + esc([p.region !== p.n ? p.region : '', p.land].filter(Boolean).join(', ')) + '</small><div class="row"><button class="gold" data-j="gpwar">War ich</button><button data-j="gpwill">Will ich hin</button><button data-j="gpx" aria-label="Schließen">✕</button></div>';
+  wrap.appendChild(G.pickEl);
+}
+function gPickSave(war) {
+  const p = G.pick; if (!p || !p.n) return;
+  orte.put('o' + uid(), { n: p.n, region: p.region || '', land: p.land || '', cc: p.cc || '', lat: +(+p.lat).toFixed(4), lon: +(+p.lon).toFixed(4), war, besucht: '', prio: false, note: '', created: new Date().toISOString() }, 0);
+  toast(p.n + (war ? ' als bereist markiert' : ' auf deine Wunschliste gesetzt'));
+  G.pick = null; G.cKey = ''; gPickShow(); render();
 }
 function visitedCountries(places) {
   const key = places.map((p) => p.lon + ',' + p.lat).join(';');
@@ -231,47 +293,92 @@ function visitedCountries(places) {
   G.cKey = key; G.cSet = s;
   return s;
 }
+function gLabel(ctx, boxes, text, x, y, font, color, pad) {
+  ctx.font = font;
+  const w = ctx.measureText(text).width, h = parseFloat(font.match(/(\d+(\.\d+)?)px/)[1]);
+  const b = [x - w / 2 - pad, y - h / 2 - pad, x + w / 2 + pad, y + h / 2 + pad];
+  if (boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1])) return false;
+  boxes.push(b);
+  ctx.fillStyle = color; ctx.fillText(text, x, y);
+  return true;
+}
 function drawGlobe(c) {
-  const ctx = c.getContext('2d'), w = c.width, h = c.height, r = Math.min(w, h) * 0.42;
-  const proj = d3.geoOrthographic().scale(r).translate([w / 2, h / 2]).clipAngle(90).rotate(G.rot);
-  const path = d3.geoPath(proj, ctx);
+  const ctx = c.getContext('2d'), w = c.width, h = c.height, D = G.dpr;
+  const proj = gProj(c), r = proj.scale(), path = d3.geoPath(proj, ctx);
+  const cx = w / 2, cy = h / 2;
   ctx.clearRect(0, 0, w, h);
-  // Atmosphäre
-  const glow = ctx.createRadialGradient(w / 2, h / 2, r * 0.95, w / 2, h / 2, r * 1.18);
-  glow.addColorStop(0, 'rgba(120,150,220,.28)'); glow.addColorStop(1, 'rgba(120,150,220,0)');
-  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(w / 2, h / 2, r * 1.18, 0, Math.PI * 2); ctx.fill();
-  // Meer
-  const sea = ctx.createRadialGradient(w / 2 - r * 0.35, h / 2 - r * 0.4, r * 0.1, w / 2, h / 2, r);
+  if (r < Math.max(w, h)) {
+    const glow = ctx.createRadialGradient(cx, cy, r * 0.95, cx, cy, r * 1.18);
+    glow.addColorStop(0, 'rgba(120,150,220,.28)'); glow.addColorStop(1, 'rgba(120,150,220,0)');
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(cx, cy, r * 1.18, 0, Math.PI * 2); ctx.fill();
+  }
+  const sea = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r);
   sea.addColorStop(0, '#22304A'); sea.addColorStop(1, '#0E1524');
   ctx.beginPath(); path({ type: 'Sphere' }); ctx.fillStyle = sea; ctx.fill();
-  ctx.beginPath(); path(d3.geoGraticule10()); ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = 1 * G.dpr; ctx.stroke();
+  ctx.beginPath(); path(d3.geoGraticule10()); ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = D; ctx.stroke();
   const P = orte.all().map(([, x]) => x).filter((x) => isFinite(x.lat) && isFinite(x.lon));
   const vis = visitedCountries(P.filter((x) => x.war));
-  // Land
   G.world.forEach((f) => {
     ctx.beginPath(); path(f);
     ctx.fillStyle = vis.has(f) ? 'rgba(217,188,134,.42)' : '#2A3346'; ctx.fill();
-    ctx.strokeStyle = vis.has(f) ? 'rgba(232,207,159,.55)' : 'rgba(255,255,255,.07)'; ctx.lineWidth = 0.6 * G.dpr; ctx.stroke();
+    ctx.strokeStyle = vis.has(f) ? 'rgba(232,207,159,.55)' : 'rgba(255,255,255,' + (G.k > 3 ? '.16' : '.07') + ')'; ctx.lineWidth = 0.7 * D; ctx.stroke();
   });
-  // Punkte
   const center = [-G.rot[0], -G.rot[1]];
+  const onFront = (ll, m) => d3.geoDistance(ll, center) < Math.PI / 2 - (m || 0.02);
+  const inView = (p) => p[0] > -40 * D && p[0] < w + 40 * D && p[1] > -20 * D && p[1] < h + 20 * D;
+  const boxes = [];
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  // Eigene Orte zuerst (haben Vorrang bei den Beschriftungen)
   G.hit = [];
+  const showPlaceNames = G.k >= 2.6;
   P.forEach((x) => {
-    if (d3.geoDistance([x.lon, x.lat], center) > Math.PI / 2 - 0.02) return;
-    const [px, py] = proj([x.lon, x.lat]);
+    if (!onFront([x.lon, x.lat])) return;
+    const [px, py] = proj([x.lon, x.lat]); if (!inView([px, py])) return;
     G.hit.push({ x: px, y: py, n: x.n, cc: x.cc, war: x.war });
     if (x.war) {
-      const g = ctx.createRadialGradient(px, py, 0, px, py, 9 * G.dpr);
+      const g = ctx.createRadialGradient(px, py, 0, px, py, 9 * D);
       g.addColorStop(0, 'rgba(255,236,200,.9)'); g.addColorStop(1, 'rgba(232,207,159,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px, py, 9 * G.dpr, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#F6E3BC'; ctx.beginPath(); ctx.arc(px, py, 2.6 * G.dpr, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px, py, 9 * D, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#F6E3BC'; ctx.beginPath(); ctx.arc(px, py, 2.6 * D, 0, Math.PI * 2); ctx.fill();
     } else {
-      ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1.6 * G.dpr; ctx.beginPath(); ctx.arc(px, py, 4 * G.dpr, 0, Math.PI * 2); ctx.stroke();
-      if (x.prio) { ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.beginPath(); ctx.arc(px, py, 1.6 * G.dpr, 0, Math.PI * 2); ctx.fill(); }
+      ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 1.6 * D; ctx.beginPath(); ctx.arc(px, py, 4.2 * D, 0, Math.PI * 2); ctx.stroke();
+      if (x.prio) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px, py, 1.6 * D, 0, Math.PI * 2); ctx.fill(); }
     }
   });
-  // Glanz
-  const shine = ctx.createRadialGradient(w / 2 - r * 0.45, h / 2 - r * 0.5, 0, w / 2 - r * 0.45, h / 2 - r * 0.5, r * 1.1);
+  if (showPlaceNames) P.forEach((x) => {
+    if (!onFront([x.lon, x.lat])) return;
+    const [px, py] = proj([x.lon, x.lat]); if (!inView([px, py])) return;
+    gLabel(ctx, boxes, x.n, px, py - 13 * D, '600 ' + (12 * D) + 'px -apple-system,system-ui,sans-serif', x.war ? '#F6E3BC' : '#FFFFFF', 3 * D);
+  });
+  // Ländernamen: je weiter hineingezoomt, desto mehr
+  const minPx = (G.k < 1.5 ? 5200 : G.k < 3 ? 2600 : 900) * D * D;
+  for (const co of G.countries) {
+    if (co.a * r * r < minPx) continue;
+    if (!onFront(co.c, 0.25)) continue;
+    const p = proj(co.c); if (!p || !inView(p)) continue;
+    gLabel(ctx, boxes, co.name.toUpperCase(), p[0], p[1], '600 ' + ((G.k < 2 ? 9.5 : 11) * D) + 'px -apple-system,system-ui,sans-serif', 'rgba(255,255,255,.5)', 2 * D);
+  }
+  // Städte ab einer gewissen Zoomstufe
+  if (G.k >= 2.2) {
+    const minPop = G.k < 3.5 ? 6e6 : G.k < 6 ? 2e6 : G.k < 10 ? 6e5 : 0;
+    let n = 0;
+    for (const [name, lat, lon, pop] of G.cities) {
+      if (pop < minPop) break;
+      if (!onFront([lon, lat], 0.05)) continue;
+      const p = proj([lon, lat]); if (!inView(p)) continue;
+      if (gLabel(ctx, boxes, name, p[0] + 6 * D, p[1], '500 ' + (11 * D) + 'px -apple-system,system-ui,sans-serif', 'rgba(255,255,255,.78)', 2 * D)) {
+        ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.beginPath(); ctx.arc(p[0] - ctx.measureText(name).width / 2, p[1], 1.8 * D, 0, Math.PI * 2); ctx.fill();
+        if (++n > 60) break;
+      }
+    }
+  }
+  // Markierung beim Antippen
+  if (G.pick && onFront([G.pick.lon, G.pick.lat])) {
+    const [px, py] = proj([G.pick.lon, G.pick.lat]);
+    ctx.fillStyle = '#E8CF9F'; ctx.beginPath(); ctx.arc(px, py, 5 * D, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(232,207,159,.5)'; ctx.lineWidth = 2 * D; ctx.beginPath(); ctx.arc(px, py, 11 * D, 0, Math.PI * 2); ctx.stroke();
+  }
+  const shine = ctx.createRadialGradient(cx - r * 0.45, cy - r * 0.5, 0, cx - r * 0.45, cy - r * 0.5, r * 1.1);
   shine.addColorStop(0, 'rgba(255,255,255,.10)'); shine.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.beginPath(); path({ type: 'Sphere' }); ctx.fillStyle = shine; ctx.fill();
 }
@@ -389,6 +496,10 @@ document.addEventListener('click', (e) => {
     const q = 'Wohin soll ich als Nächstes reisen?' + (J.w.budget ? ' Budget: ' + J.w.budget + ' CHF.' : '') + (J.w.tage ? ' Zeit: ' + J.w.tage + ' Tage.' : '') + (J.w.monat ? ' Wann: ' + J.w.monat + '.' : '') + ' Gib mir 3 konkrete Vorschläge mit groben Kosten.';
     return openChat('reise', q);
   }
+  if (a === 'gz') { const v = +b.dataset.v; if (v) gZoom(v); else { G.k = 1; G.rot = [-8, -40, 0]; } return; }
+  if (a === 'gpwar') return gPickSave(true);
+  if (a === 'gpwill') return gPickSave(false);
+  if (a === 'gpx') { G.pick = null; return gPickShow(); }
   // Karriere
   if (a === 'krplan') return krReplan();
   if (a === 'kropen') { J.krOpen = J.krOpen === +b.dataset.i ? -1 : +b.dataset.i; return render(); }
@@ -439,3 +550,142 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('toggle', (e) => { if (e.target && e.target.id === 'krprof') J.krEdit = e.target.open; }, true);
 // Neue Daten vom Server (z. B. Chat auf einem anderen Gerät) auch im offenen Chat zeigen
 window.addEventListener('th-synced', () => { if (J.chat && !J.chatBusy) renderChat(); });
+
+/* ============================================================
+   Darstellung (Dunkel / Hell / System)
+   ============================================================ */
+function jTheme() { try { return localStorage.getItem('james-theme') || 'dark'; } catch (e) { return 'dark'; } }
+function jSetTheme(t) {
+  try { localStorage.setItem('james-theme', t); } catch (e) {}
+  if (t === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
+  const dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', dark ? '#0B0B0C' : '#F4F3EF'));
+}
+jSetTheme(jTheme());
+function themeSettings() {
+  const t = jTheme();
+  return '<section class="card"><h3>Darstellung</h3><div class="chips">' + [['dark', 'Dunkel'], ['light', 'Hell'], ['system', 'Wie das iPhone']].map(([v, l]) => '<button data-j="theme" data-v="' + v + '" class="' + (t === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div></section>';
+}
+
+/* ============================================================
+   Start: Training eintragen
+   ============================================================ */
+function jamesQuick() {
+  const k = today(), lg = logged(k), ty = typeOf(k), p = planT(k);
+  let label, sub;
+  if (lg) { label = doneLine(k).replace(/^\S+\s/, ''); sub = 'Heute erledigt ✓'; }
+  else if (ty) { label = 'Training weiter eintragen'; sub = '(' + chosenLine(k).replace(/^\S+\s/, '') + ')'; }
+  else if (p === 'free') { label = 'Training eintragen'; sub = '(heute frei laut Plan)'; }
+  else { label = 'Training eintragen'; sub = '(heute: ' + recLine(k).replace(/^\S+\s/, '') + ')'; }
+  const t = lg ? ty : (ty || (p === 'free' ? '' : p));
+  return '<button class="jq' + (lg ? ' done' : '') + '" data-j="qtrain"><span class="tic ' + (t && TIC[t] ? 't-' + t : 'none') + '">' + (t && TIC[t] ? TIC[t] : '') + '</span><span><b>' + esc(label) + '</b><small>' + esc(sub) + '</small></span><span class="chev">›</span></button>';
+}
+
+/* ============================================================
+   Training: Übersicht mit Ringen und letzten Einheiten
+   ============================================================ */
+function ring(v, max, cls, ic, lab, sub) {
+  const r = 26, c = 2 * Math.PI * r, f = Math.min(1, max ? v / max : 0);
+  return '<div class="rg"><svg viewBox="0 0 64 64" class="rgs"><circle cx="32" cy="32" r="' + r + '" class="rg-bg"/><circle cx="32" cy="32" r="' + r + '" class="rg-fg ' + cls + '" stroke-dasharray="' + (c * f).toFixed(1) + ' ' + c.toFixed(1) + '"/></svg><span class="rg-ic ' + cls + '">' + ic + '</span><b>' + v + '<small>/' + max + '</small></b><span class="rg-l">' + lab + '</span>' + (sub ? '<span class="rg-s">' + sub + '</span>' : '') + '</div>';
+}
+function trainHero(ks) {
+  const c = { gym: 0, run: 0, swim: 0 }; let km = 0, m = 0, vol = 0;
+  ks.forEach((s) => { if (!isSport(s)) return; const t = typeOf(s), x = sess(s); c[t]++; if (t === 'run') km += num(x.dist); if (t === 'swim') m += swimDist(x); if (t === 'gym') vol += (x.ex || []).reduce((n, e) => n + (e.sets || []).reduce((q, z) => q + num(z.w) * num(z.r), 0), 0); });
+  const tot = c.gym + c.run + c.swim, goal = 5;
+  // Serie: Wochen in Folge mit mindestens 4 Einheiten
+  let streak = 0; const m0 = monday(new Date());
+  for (let w = 1; w < 30; w++) { let n = 0; for (let i = 0; i < 7; i++) if (isSport(iso(addD(m0, -7 * w + i)))) n++; if (n >= 4) streak++; else break; }
+  return '<section class="card th"><div class="head"><h2>Diese Woche</h2><span class="hint">' + tot + ' von ' + goal + ' Einheiten' + (streak ? ' · 🔥 ' + streak + (streak === 1 ? ' Woche' : ' Wochen') + ' in Folge' : '') + '</span></div><div class="rings">'
+    + ring(c.gym, 3, 't-gym', TIC.gym, 'Gym', vol ? Math.round(vol / 1000 * 10) / 10 + ' t' : '')
+    + ring(c.run, 1, 't-run', TIC.run, 'Laufen', km ? dec(km) + ' km' : '')
+    + ring(c.swim, 1, 't-swim', TIC.swim, 'Schwimmen', m ? Math.round(m) + ' m' : '') + '</div></section>';
+}
+function trainRecent() {
+  const ds = sessions.ids().filter((d) => d <= today() && isSport(d)).sort().reverse().slice(0, 4);
+  if (!ds.length) return '';
+  return '<section class="card"><div class="lbl">Letzte Einheiten</div><div class="recent">' + ds.map((d) => {
+    const t = typeOf(d), x = sess(d), g = parse(d);
+    return '<button class="rc" data-day="' + d + '"><span class="tic t-' + t + '">' + TIC[t] + '</span><span><b>' + esc(doneLine(d).replace(/^\S+\s/, '')) + '</b><small>' + WDL[g.getDay()] + ', ' + fmtD(d) + (x.feel ? ' · Gefühl ' + x.feel + '/5' : '') + '</small></span></button>';
+  }).join('') + '</div></section>';
+}
+
+/* ============================================================
+   Wecker
+   ============================================================ */
+const WD7 = [[1, 'Mo'], [2, 'Di'], [3, 'Mi'], [4, 'Do'], [5, 'Fr'], [6, 'Sa'], [0, 'So']];
+function wk() { return Object.assign({ wt: '06:30', we: '07:45', days: [1, 2, 3, 4, 5, 6, 0], song: '', sec: 30, musik: 'spotify' }, settings.get('wecker') || {}); }
+function spotifyId(u) { const m = String(u || '').match(/track[/:]([A-Za-z0-9]{22})/); return m ? m[1] : ''; }
+function nextAlarm(w) {
+  const now = new Date();
+  for (let i = 0; i < 8; i++) {
+    const d = addD(now, i), dw = d.getDay();
+    if (!w.days.includes(dw)) continue;
+    const [hh, mm] = (dw === 0 || dw === 6 ? w.we : w.wt).split(':').map(Number);
+    const at = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm);
+    if (at > now) return at;
+  }
+  return null;
+}
+function weckerHTML() {
+  const w = wk(), n = nextAlarm(w), id = spotifyId(w.song), code = J.weckCode || '';
+  const url = location.origin + '/api/briefing?format=text&k=' + (code || '…');
+  const diff = n ? Math.round((n - new Date()) / 60000) : 0;
+  let h = '<div class="ch-head"><span class="orb"></span><b>Wecker</b><button data-j="weckclose">Fertig</button></div><div class="ch-body wk">';
+  h += '<section class="wk-hero"><span class="eyebrow">Nächstes Wecken</span><div class="wk-time">' + (n ? pad(n.getHours()) + ':' + pad(n.getMinutes()) : '–') + '</div><span class="wk-sub">' + (n ? WDL[n.getDay()] + ' · in ' + (diff >= 60 ? Math.floor(diff / 60) + ' h ' : '') + (diff % 60) + ' min' : 'Kein Tag aktiv') + '</span>'
+    + '<div class="wk-flow"><span>⏰<small>Wecker</small></span><i></i><span>🎵<small>' + w.sec + ' s Song</small></span><i></i><span><span class="orb" style="width:22px;height:22px;display:inline-block"></span><small>James-Briefing</small></span></div></section>';
+  h += '<section class="card"><div class="grid2"><label class="f">Werktags<input type="time" value="' + esc(w.wt) + '" data-wk="wt"></label><label class="f">Wochenende<input type="time" value="' + esc(w.we) + '" data-wk="we"></label></div>'
+    + '<div class="chips wk-days">' + WD7.map(([d, l]) => '<button data-j="wkday" data-v="' + d + '" class="' + (w.days.includes(d) ? 'on' : '') + '">' + l + '</button>').join('') + '</div></section>';
+  h += '<section class="card"><h3>Song</h3><div class="seg2"><button data-j="wkmus" data-v="spotify" class="' + (w.musik === 'spotify' ? 'on' : '') + '">Spotify</button><button data-j="wkmus" data-v="apple" class="' + (w.musik === 'apple' ? 'on' : '') + '">Apple Music</button></div>'
+    + (w.musik === 'spotify' ? '<label class="f">Spotify-Link des Songs<input value="' + esc(w.song) + '" data-wk="song" placeholder="In Spotify: ••• → Teilen → Link kopieren" autocapitalize="off"></label>' + (w.song && !id ? '<p class="msg">Das ist kein Spotify-Song-Link.</p>' : id ? '<p class="hint">✓ Song erkannt</p>' : '') : '<p class="hint">Den Song wählst du direkt im Kurzbefehl aus deiner Apple-Music-Mediathek.</p>')
+    + '<label class="f">Länge: ' + w.sec + ' Sekunden<input type="range" min="10" max="90" step="5" value="' + w.sec + '" data-wk="sec"></label></section>';
+  h += '<section class="card"><h3>Briefing testen</h3><p class="hint">So klingt James morgen früh.</p><div class="row"><button class="pri" data-j="brief">' + (J.speaking ? '■ Stopp' : '▶ Briefing anhören') + '</button></div></section>';
+  // Einrichtung
+  const spUri = id ? 'spotify:track:' + id : 'spotify:track:…';
+  h += '<section class="card wk-setup"><h3>Einmal einrichten (5 Minuten)</h3><p class="hint">Das Wecken läuft über die Kurzbefehle-App deines iPhones. Web-Apps dürfen iOS nicht selbst aufwecken – Kurzbefehle schon.</p><ol>'
+    + '<li>In der <b>Uhr-App</b> je einen Wecker für ' + esc(w.wt) + ' (Werktage) und ' + esc(w.we) + ' (Wochenende) stellen. Er ist dein Sicherheitsnetz, falls etwas schiefgeht.</li>'
+    + '<li><b>Kurzbefehle</b> → <b>Automation</b> → <b>+</b> → <b>Wecker</b> → „<b>Wird gestoppt</b>“ → <b>Sofort ausführen</b> → <b>Neuer leerer Kurzbefehl</b>.</li>'
+    + '<li>Aktion <b>Lautstärke festlegen</b> → 50 %.</li>'
+    + (w.musik === 'spotify'
+      ? '<li>Aktion <b>URL öffnen</b> → <code>' + esc(spUri) + '</code> <button class="sm" data-j="copy" data-v="' + esc(spUri) + '">Kopieren</button></li><li>Aktion <b>Warten</b> → 2 Sekunden, dann <b>Wiedergabe/Pause</b> → „Wiedergabe“.</li>'
+      : '<li>Aktion <b>Musik wiedergeben</b> → deinen Song auswählen.</li>')
+    + '<li>Aktion <b>Warten</b> → ' + w.sec + ' Sekunden, dann <b>Wiedergabe/Pause</b> → „Pause“.</li>'
+    + '<li>Aktion <b>Inhalte von URL abrufen</b> → <code class="wrap">' + esc(url) + '</code> ' + (code ? '<button class="sm" data-j="copy" data-v="' + esc(url) + '">Kopieren</button>' : '<button class="sm" data-j="weckcode">Adresse erzeugen</button>') + '</li>'
+    + '<li>Aktion <b>Text sprechen</b> → „Inhalte von URL“, Sprache Deutsch. Fertig.</li></ol>'
+    + '<p class="hint">' + (w.musik === 'spotify' ? 'Spotify kann nur bei entsperrtem iPhone starten – wenn du den Wecker ausschaltest, kurz aufs Display schauen (Face ID). Spielt Spotify nicht den gewählten Song, sondern den zuletzt gehörten, nimm Apple Music – das klappt auch gesperrt.' : 'Apple Music spielt auch bei gesperrtem iPhone.') + ' Das Briefing liegt jeden Morgen ab 6:15 Uhr bereit.</p></section>';
+  return h + '</div>';
+}
+function openWecker() {
+  let el = document.getElementById('wecker');
+  if (!el) { el = document.createElement('div'); el.id = 'wecker'; el.className = 'chatlike'; document.body.appendChild(el); }
+  document.body.classList.add('lock');
+  el.innerHTML = weckerHTML();
+  if (!J.weckCode) TH.call('/wecker/code').then((r) => { J.weckCode = r.code; const e = document.getElementById('wecker'); if (e) { const st = e.querySelector('.ch-body').scrollTop; e.innerHTML = weckerHTML(); e.querySelector('.ch-body').scrollTop = st; } }).catch(() => {});
+}
+function refreshWecker() { const e = document.getElementById('wecker'); if (!e) return; const st = e.querySelector('.ch-body').scrollTop; e.innerHTML = weckerHTML(); e.querySelector('.ch-body').scrollTop = st; }
+function closeWecker() { const el = document.getElementById('wecker'); if (el) el.remove(); document.body.classList.remove('lock'); softRender(); }
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-j]'); if (!b) return;
+  const a = b.dataset.j;
+  if (a === 'theme') { jSetTheme(b.dataset.v); const s = document.getElementById('setsheet'); if (s) s.innerHTML = setHTML(); return; }
+  if (a === 'qtrain') {
+    sel = today(); setView('training');
+    if (!typeOf(sel) && planT(sel) !== 'free') { const p = planT(sel); setTrainType(p === 'gym' ? 'g' + nextTpl(sel) : p); }
+    return;
+  }
+  if (a === 'wecker') return openWecker();
+  if (a === 'weckclose') return closeWecker();
+  if (a === 'wkday') { const w = settings.edit('wecker'); const cur = wk(); const d = +b.dataset.v; w.days = cur.days.includes(d) ? cur.days.filter((x) => x !== d) : cur.days.concat(d); settings.touch('wecker', 0); return refreshWecker(); }
+  if (a === 'wkmus') { const w = settings.edit('wecker'); w.musik = b.dataset.v; settings.touch('wecker', 0); return refreshWecker(); }
+  if (a === 'weckcode') { TH.call('/wecker/code').then((r) => { J.weckCode = r.code; refreshWecker(); }).catch(() => toast('Gerade nicht möglich.')); return; }
+  if (a === 'copy') { const v = b.dataset.v; (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject()).then(() => toast('Kopiert')).catch(() => { prompt('Kopieren:', v); }); return; }
+});
+document.addEventListener('input', (e) => {
+  const t = e.target; if (!t.dataset || !t.dataset.wk) return;
+  const w = settings.edit('wecker'), cur = wk();
+  Object.keys(cur).forEach((k) => { if (w[k] == null) w[k] = cur[k]; });
+  w[t.dataset.wk] = t.dataset.wk === 'sec' ? +t.value : t.value.trim();
+  settings.touch('wecker', 700);
+  if (t.dataset.wk === 'sec') { const l = t.closest('label'); if (l) l.firstChild.textContent = 'Länge: ' + t.value + ' Sekunden'; }
+});
+document.addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.wk && e.target.dataset.wk !== 'sec') refreshWecker(); });

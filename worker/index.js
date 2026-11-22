@@ -4,7 +4,7 @@
 
 import { calendarEvents } from './ical.js';
 import { serveStatic } from './static.js';
-import { chat, replanCareer, briefing, geocode, getKey, setKey, todayLocal } from './ai.js';
+import { chat, replanCareer, briefing, geocode, reverseGeocode, getKey, setKey, todayLocal } from './ai.js';
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -54,7 +54,25 @@ async function api(req, env, url) {
   const p = url.pathname;
 
   if (p === '/api/ping') return json({ ok: true });
-  if (!authorized(req, env)) return json({ error: 'unauthorized' }, 401);
+  // Der Wecker-Kurzbefehl darf nur das Briefing abrufen, mit eigenem Code (?k=).
+  let weck = false;
+  const wkKey = url.searchParams.get('k');
+  if (p === '/api/briefing' && wkKey) {
+    const r = await env.DB.prepare('SELECT v FROM secrets WHERE k=?1').bind('weckcode').first();
+    weck = !!(r && r.v && r.v.length === wkKey.length && r.v === wkKey);
+  }
+  if (!weck && !authorized(req, env)) return json({ error: 'unauthorized' }, 401);
+
+  if (p === '/api/wecker/code' && req.method === 'GET') {
+    let r = await env.DB.prepare('SELECT v FROM secrets WHERE k=?1').bind('weckcode').first();
+    if (!r) {
+      const a = 'abcdefghjkmnpqrstuvwxyz23456789', b = crypto.getRandomValues(new Uint8Array(24));
+      const v = Array.from(b, (x) => a[x % a.length]).join('');
+      await env.DB.prepare('INSERT INTO secrets (k,v) VALUES (?1,?2)').bind('weckcode', v).run();
+      r = { v };
+    }
+    return json({ code: r.v });
+  }
 
   // Alle Änderungen seit einem Zeitpunkt (ms). since=0 liefert alles.
   if (p === '/api/sync' && req.method === 'GET') {
@@ -148,6 +166,12 @@ async function api(req, env, url) {
     const doc = await briefing(env, { useAi: url.searchParams.get('ai') !== '0', fresh: url.searchParams.get('fresh') === '1', events });
     if (url.searchParams.get('format') === 'text') return new Response(doc.text, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
     return json(doc);
+  }
+
+  if (p === '/api/geo/rev' && req.method === 'GET') {
+    const lat = Number(url.searchParams.get('lat')), lon = Number(url.searchParams.get('lon'));
+    if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return json({ error: 'invalid_argument' }, 400);
+    return json({ place: await reverseGeocode(lat, lon).catch(() => null) });
   }
 
   if (p === '/api/geo' && req.method === 'GET') {

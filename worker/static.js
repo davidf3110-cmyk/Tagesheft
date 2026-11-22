@@ -11,6 +11,7 @@ import jamesJs from '../public/james.js';
 import jamesCss from '../public/james.css';
 import globeLib from '../public/globe-lib.js';
 import world from '../public/world.json';
+import geoExtra from '../public/geo-extra.json';
 
 const FILES = {
   '/': [index, 'text/html; charset=utf-8', 'no-cache'],
@@ -22,6 +23,7 @@ const FILES = {
   '/james.css': [jamesCss, 'text/css; charset=utf-8', 'no-cache'],
   '/globe-lib.js': [globeLib, 'text/javascript; charset=utf-8', 'max-age=604800'],
   '/world.json': [typeof world === 'string' ? world : JSON.stringify(world), 'application/json', 'max-age=604800'],
+  '/geo-extra.json': [typeof geoExtra === 'string' ? geoExtra : JSON.stringify(geoExtra), 'application/json; charset=utf-8', 'max-age=604800'],
   '/icon.svg': [icon, 'image/svg+xml', 'max-age=86400'],
   '/icon-180.png': [icon180, 'image/png', 'max-age=86400'],
   '/icon-192.png': [icon192, 'image/png', 'max-age=86400'],

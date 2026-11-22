@@ -365,3 +365,17 @@ export async function geocode(q) {
   const j = await r.json();
   return (j.results || []).map((x) => ({ n: x.name, region: x.admin1 || '', land: x.country || '', cc: x.country_code || '', lat: x.latitude, lon: x.longitude }));
 }
+
+// Ort an einer Koordinate (für das Markieren auf dem Globus). OpenStreetMap Nominatim, sparsam genutzt.
+export async function reverseGeocode(lat, lon) {
+  const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=de&lat=${lat}&lon=${lon}`, {
+    headers: { 'user-agent': 'James-Planer/1.0 (persoenliche App)' },
+  });
+  if (!r.ok) return null;
+  const j = await r.json();
+  if (!j || j.error || !j.address) return null;
+  const a = j.address;
+  const n = a.city || a.town || a.village || a.municipality || a.county || a.state_district || a.state || a.region || j.name;
+  if (!n) return null;
+  return { n, region: a.state || a.region || '', land: a.country || '', cc: (a.country_code || '').toUpperCase(), lat: +j.lat, lon: +j.lon };
+}

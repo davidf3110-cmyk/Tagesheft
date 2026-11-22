@@ -1,5 +1,5 @@
 // Offline-Cache für die App-Hülle. Daten (/api) laufen nie über den Cache.
-const CACHE = 'james-v2';
+const CACHE = 'james-v3';
 const SHELL = ['./', 'index.html', 'sync.js', 'james.js', 'james.css', 'icon.svg', 'manifest.webmanifest'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {

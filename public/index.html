@@ -2,6 +2,7 @@
 <title>James</title>
 <meta name="theme-color" content="#F4F3EF" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0B0B0C" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="James">
+<script>try{var t=localStorage.getItem("james-theme")||"dark";if(t!=="system")document.documentElement.setAttribute("data-theme",t)}catch(e){document.documentElement.setAttribute("data-theme","dark")}</script>
 <link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon-180.png">
 <style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 </head><body>
@@ -396,7 +397,7 @@ details.more.card summary{font-weight:600;color:var(--ink)}
 <link rel="stylesheet" href="james.css">
 
 <main>
-  <header><div class="htl"><span class="eyebrow" id="hdate"></span><h1 id="ttl">James</h1></div><span class="hrt"><button class="gear" id="setbtn" aria-label="Einstellungen"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button></span></header>
+  <header><div class="htl"><span class="eyebrow" id="hdate"></span><h1 id="ttl">James</h1></div><span class="hrt"><button class="gear" id="alarmbtn" data-j="wecker" aria-label="Wecker"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.8M4.5 5.5l3-2.5M19.5 5.5l-3-2.5"/></svg></button><button class="gear" id="setbtn" aria-label="Einstellungen"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button></span></header>
   <p id="banner" class="banner" role="status" hidden></p>
   <div id="jtop"></div>
   <div class="nav" id="navrow"><button data-wk="-1" aria-label="Vorwoche">‹</button><div id="wk"></div><button data-wk="1" aria-label="Nächste Woche">›</button><button id="today">Heute</button></div>
@@ -980,7 +981,7 @@ function trainOverview(){
   const kgw=agg.map((a,i)=>a.kg.length?'KW '+kw(W[i])+' '+dec(a.kg.reduce((x,y)=>x+y,0)/a.kg.length):'').filter(Boolean);
   return '<details class="card more" id="verlauf"'+(verlaufOpen?' open':'')+'><summary>Verlauf · 8 Wochen</summary><div style="display:grid;gap:12px">'+(kgw.length?'<p class="line"><b>Gewicht Ø</b> '+kgw.join(' · ')+'</p>':'')+ch('Gym-Volumen (kg × Wdh)','g','gym')+ch('Laufen (km)','r','run')+ch('Schwimmen (m)','s','swim')+'</div></details>';
 }
-function trainingView(){return trainSum(weekDays())+trainPanel(sel)+trainOverview()}
+function trainingView(){return trainHero(weekDays())+trainPanel(sel)+trainRecent()+trainOverview()}
 function setTrainType(v){
   const k=sel,before=sess(k)?clone(sess(k)):null,prevT=typeOf(k),x=sessions.edit(k);
   const hadData=before?(hasGym(before)||hasCardio(before)):false;
@@ -1332,7 +1333,7 @@ function jobNext(){
 }
 
 /* ================= To-dos (eigener Bereich) ================= */
-let td2={t:'',due:'',pr:'Mittel'},tdDoneOpen=false;
+let td2={t:'',due:today(),pr:'Mittel'},tdDoneOpen=false;
 function todosView(){
   const t=today(),wk=iso(addD(parse(t),7));
   const open=todos.all().filter(([,x])=>x.st!=='done');
@@ -1348,6 +1349,7 @@ function todosView(){
   const dn=todos.all().filter(([,x])=>x.st==='done'&&(x.done||'')>=lim).sort((a,b)=>String(b[1].done).localeCompare(String(a[1].done)));
   let h='<section class="card"><div class="head"><h2>To-dos</h2><span class="hint">'+open.length+' offen</span></div>'
     +'<form class="add" id="tdform2" autocomplete="off"><input id="tdnew2" placeholder="Neues To-do" value="'+esc(td2.t)+'" data-in="td2t" aria-label="Neues To-do"><button class="pri plus" type="submit" aria-label="Hinzufügen">+</button></form>'
+    +'<div class="chips">'+[['heute','Heute',today()],['morgen','Morgen',iso(addD(new Date(),1))],['we','Wochenende',iso(addD(monday(new Date()),5))<today()?today():iso(addD(monday(new Date()),5))],['woche','Nächste Woche',iso(addD(monday(new Date()),7))]].map(([k,l,v])=>'<button data-a="td2d" data-v="'+v+'" class="'+(td2.due===v?'on':'')+'">'+l+'</button>').join('')+'<button data-a="td2d" data-v="" class="'+(!td2.due?'on':'')+'">Ohne Datum</button></div>'
     +'<div class="addmeta"><label class="row" style="gap:6px">Fällig <input type="date" id="tddue2" value="'+esc(td2.due)+'" data-in="td2due"></label>'
     +'<div class="chips">'+['Hoch','Mittel','Niedrig'].map(p=>'<button data-a="td2pr" data-v="'+p+'" class="'+(td2.pr===p?'on':'')+'" aria-pressed="'+(td2.pr===p)+'">'+p+'</button>').join('')+'</div></div></section>';
   if(!todos.ready&&!open.length)return h+'<p class="hint">Lade …</p>';
@@ -1368,7 +1370,8 @@ function addTodo2(){
 }
 
 document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b)return;
-  if(b.dataset.a==='td2pr'){td2.pr=b.dataset.v;const el=$('#tdnew2');if(el)td2.t=el.value;render()}});
+  if(b.dataset.a==='td2pr'){td2.pr=b.dataset.v;const el=$('#tdnew2');if(el)td2.t=el.value;render()}
+  if(b.dataset.a==='td2d'){td2.due=b.dataset.v;const el=$('#tdnew2');if(el)td2.t=el.value;render()}});
 document.addEventListener('submit',e=>{if(e.target.id==='tdform2'){e.preventDefault();addTodo2()}});
 document.addEventListener('input',e=>{const t=e.target,f=t.dataset.in;if(f==='td2t')td2.t=t.value;else if(f==='td2due')td2.due=t.value});
 document.addEventListener('toggle',e=>{if(e.target&&e.target.id==='tddone')tdDoneOpen=e.target.open},true);
@@ -1419,7 +1422,7 @@ function render(){
   const noWeek=view!=='training'&&!(view==='heute'&&sub==='tag');
   const wk=weekDays();
   $('#navrow').hidden=view!=='training';
-  $('#jtop').innerHTML=view==='heute'&&sub==='tag'?jamesCard():'';
+  $('#jtop').innerHTML=view==='heute'&&sub==='tag'?jamesCard()+jamesQuick():'';
   $('#wk').textContent=view==='geld'&&geldR==='monat'?'Monat '+perLabel(perKey(sel)):'KW '+kw(parse(wk[0]))+' · '+fmtD(wk[0])+'–'+fmtD(wk[6]);
   $('#strip').hidden=noWeek;
   if(!noWeek)$('#strip').innerHTML=stripHTML();
