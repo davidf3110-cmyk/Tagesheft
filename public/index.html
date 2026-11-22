@@ -1398,7 +1398,7 @@ function render(){
   const noWeek=view!=='training'&&!(view==='heute'&&sub==='tag');
   const wk=weekDays();
   $('#navrow').hidden=view!=='training';
-  $('#jtop').innerHTML=view==='heute'&&sub==='tag'?jamesCard()+jamesQuick():'';
+  $('#jtop').innerHTML=view==='heute'&&sub==='tag'?jamesCard()+jamesQuick()+jamesTrain():'';
   $('#wk').textContent=view==='geld'&&geldR==='monat'?'Monat '+perLabel(perKey(sel)):'KW '+kw(parse(wk[0]))+' · '+fmtD(wk[0])+'–'+fmtD(wk[6]);
   $('#strip').hidden=noWeek;
   if(!noWeek)$('#strip').innerHTML=stripHTML();

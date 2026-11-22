@@ -27,10 +27,14 @@ function jamesCard() {
   stLoad();
   const b = reports.get('james-' + today()), w = b && b.wetter;
   const wx = w && w.lo != null ? w.lo + '–' + w.hi + ' °C' + (w.t ? ' · ' + w.t : '') : '';
-  const sub = J.briefBusy ? 'Stellt dein Briefing zusammen …' : J.speaking ? '■ Tippen zum Stoppen' : '▶ Tippen für dein Briefing';
-  return '<section class="jc"><button class="jc-top jc-btn" data-j="brief"><span class="orb' + (J.briefBusy || J.speaking ? ' busy' : '') + '"></span><div><b>' + esc(jamesGreeting()) + '</b><small>' + sub + (wx ? ' · ' + esc(wx) : '') + '</small></div></button>'
+  const open = !!J.briefOpen;
+  const sub = J.briefBusy ? 'Stellt dein Briefing zusammen …' : open ? 'Briefing zuklappen' : 'Antippen für dein Briefing';
+  return '<section class="jc"><button class="jc-top jc-btn" data-j="briefopen" aria-expanded="' + open + '"><span class="orb' + (J.briefBusy ? ' busy' : '') + '"></span><div><b>' + esc(jamesGreeting()) + '</b><small>' + sub + '</small></div><span class="jc-chev" aria-hidden="true">' + (open ? '⌃' : '⌄') + '</span></button>'
+    + (wx ? '<div class="jc-wx"><span>' + wxIcon(w) + '</span><b>' + esc(w.lo + '–' + w.hi + ' °C') + '</b>' + (w.t ? '<small>' + esc(w.t) + '</small>' : '') + '</div>' : '')
+    + (open && b ? '<p>' + esc(b.text) + '</p>' : '')
     + '<form class="ask" id="jask" autocomplete="off"><input id="jaskin" placeholder="Frag James …" aria-label="Frag James" enterkeyhint="send"><button type="submit" aria-label="Senden">↑</button></form></section>';
 }
+function wxIcon(w) { const t = String(w.t || '').toLowerCase(); return /gewitter/.test(t) ? '⛈️' : /schnee/.test(t) ? '🌨️' : /regen|schauer|niesel/.test(t) ? '🌧️' : /nebel/.test(t) ? '🌫️' : /bewölkt|wolkig|bedeckt/.test(t) ? '☁️' : /sonn|klar|heiter/.test(t) ? '☀️' : '🌤️'; }
 async function jBriefing(fresh) {
   J.briefBusy = true; softRender();
   try { await TH.call('/briefing' + (fresh ? '?fresh=1' : '')); await TH.pull(); }
@@ -421,6 +425,7 @@ const ym = () => today().slice(0, 7);
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-j]'); if (!b) return;
   const a = b.dataset.j;
+  if (a === 'briefopen') { J.briefOpen = !J.briefOpen; if (J.briefOpen && !reports.get('james-' + today())) jBriefing(false); return softRender(); }
   if (a === 'brief') { const r = reports.get('james-' + today()); if (r || J.speaking) return jSpeak(r ? r.text : ''); return jBriefing(false).then(() => { const x = reports.get('james-' + today()); if (x) jSpeak(x.text); }); }
   if (a === 'briefnew') return jBriefing(true);
   if (a === 'chat') return openChat(b.dataset.v);
@@ -524,6 +529,7 @@ function themeSettings() {
 /* ============================================================
    Start: Training eintragen
    ============================================================ */
+function jamesTrain() { return typeof weekDays === 'function' ? trainHero(weekDays()) : ''; }
 function jamesQuick() {
   const k = today(), lg = logged(k), ty = typeOf(k), p = planT(k);
   let label, sub;
@@ -568,7 +574,8 @@ function trainRecent() {
    ============================================================ */
 const NAV = [['heute', 'James'], ['todos', 'To-dos'], ['training', 'Training'], ['einkauf', 'Einkauf'], ['gebet', 'Gebet'], ['orte', 'Welt'], ['jobs', 'Karriere'], ['einstellungen', 'Einstellungen']];
 const NAVIC = {
-  wecker: '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.8M4.5 5.5l3-2.5M19.5 5.5l-3-2.5"/></svg>',
+  gebet: '<svg viewBox="0 0 24 24"><path d="M12 3v18M6.5 8.5h11"/></svg>',
+  orte: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.1-3.6-8.5s1.2-6.2 3.6-8.5z"/></svg>',
   einstellungen: '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
 };
 function menuOpen(open) {

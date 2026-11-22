@@ -142,6 +142,12 @@ input:focus,textarea:focus,select:focus{background:var(--card);border-color:var(
 .jc-btn{all:unset;cursor:pointer;display:flex;align-items:center;gap:14px;-webkit-tap-highlight-color:transparent}
 .jc-btn b{font-size:20px!important}
 .jc-btn .orb{width:44px;height:44px}
+.jc-btn>div{flex:1}
+.jc-chev{font-size:18px;color:rgba(243,241,236,.55)}
+.jc-wx{display:flex;align-items:baseline;gap:10px;padding:2px 2px 0}
+.jc-wx span{font-size:22px;align-self:center}
+.jc-wx b{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.jc-wx small{font-size:14px;color:rgba(243,241,236,.65)}
 .orb{width:40px;height:40px;border-radius:50%;flex:none;position:relative;
   background:radial-gradient(circle at 35% 30%,#FFF4DC,#D9BC86 40%,#8A6633 80%);box-shadow:0 0 24px rgba(217,188,134,.45)}
 .orb.busy{animation:breathe 1.6s ease-in-out infinite}
