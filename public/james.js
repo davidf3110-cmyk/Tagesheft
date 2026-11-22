@@ -25,13 +25,10 @@ const flag = (cc) => (cc && cc.length === 2 ? String.fromCodePoint(...[...cc.toU
 /* ---------- Startkarte ---------- */
 function jamesCard() {
   stLoad();
-  const b = reports.get('james-' + today());
-  const at = b && b.at ? new Date(b.at) : null;
-  return '<section class="jc"><div class="jc-top"><span class="orb' + (J.briefBusy || J.speaking ? ' busy' : '') + '"></span><div><b>James</b><small>'
-    + (J.briefBusy ? 'Stellt dein Briefing zusammen …' : b ? 'Briefing · ' + pad(at.getHours()) + ':' + pad(at.getMinutes()) + ' Uhr' : 'Dein persönlicher Assistent') + '</small></div></div>'
-    + '<p>' + (b ? esc(b.text) : 'Ich fasse dir deinen Tag zusammen: Wetter, Termine, To-dos, Training und was heute zählt. Frag mich auch einfach etwas.') + '</p>'
-    + '<div class="row"><button class="gold" data-j="brief">' + (b ? (J.speaking ? '■ Stopp' : '▶ Vorlesen') : 'Briefing holen') + '</button>'
-    + '</div>'
+  const b = reports.get('james-' + today()), w = b && b.wetter;
+  const wx = w && w.lo != null ? w.lo + '–' + w.hi + ' °C' + (w.t ? ' · ' + w.t : '') : '';
+  const sub = J.briefBusy ? 'Stellt dein Briefing zusammen …' : J.speaking ? '■ Tippen zum Stoppen' : '▶ Tippen für dein Briefing';
+  return '<section class="jc"><button class="jc-top jc-btn" data-j="brief"><span class="orb' + (J.briefBusy || J.speaking ? ' busy' : '') + '"></span><div><b>' + esc(jamesGreeting()) + '</b><small>' + sub + (wx ? ' · ' + esc(wx) : '') + '</small></div></button>'
     + '<form class="ask" id="jask" autocomplete="off"><input id="jaskin" placeholder="Frag James …" aria-label="Frag James" enterkeyhint="send"><button type="submit" aria-label="Senden">↑</button></form></section>';
 }
 async function jBriefing(fresh) {
@@ -102,13 +99,13 @@ function weltView() {
     h += '<div class="wstats"><div class="wstat"><b>' + lands.length + '</b><small>Länder</small></div><div class="wstat"><b>' + war.length + '</b><small>Regionen</small></div><div class="wstat"><b>' + conts.size + '</b><small>Kontinente</small></div></div>';
     h += '<section class="card"><div class="head"><h2>Länder</h2></div><div class="ctry">' + lands.map((l) => { const c = war.find(([, x]) => x.land === l)[1].cc; return '<span>' + flag(c) + ' ' + esc(l) + '</span>'; }).join('') + '</div></section>';
     h += addPlaceCard(true);
-    h += '<details class="card more" id="wwar"><summary>Alle Regionen (' + war.length + ')</summary><div>' + war.sort((a, b) => (a[1].land || '').localeCompare(b[1].land || '', 'de') || a[1].n.localeCompare(b[1].n, 'de')).map(placeRow).join('') + '</div></details>';
+    h += '<details class="card more" id="wwar"' + (J.w.warOpen ? ' open' : '') + '><summary>Alle Regionen (' + war.length + ')</summary><div>' + war.sort((a, b) => (a[1].land || '').localeCompare(b[1].land || '', 'de') || a[1].n.localeCompare(b[1].n, 'de')).map(placeRow).join('') + '</div></details>';
     setTimeout(mountGlobe, 0);
   } else {
     h += '<section class="jc"><div class="jc-top"><span class="orb"></span><div><b>Wohin als Nächstes?</b><small>James kennt deine Liste und wo du schon warst</small></div></div>'
       + '<div class="grid2"><input id="wbud" inputmode="numeric" placeholder="Budget CHF" value="' + esc(J.w.budget) + '" data-wi="budget" style="background:rgba(255,255,255,.08);color:#F3F1EC"><input id="wtage" inputmode="numeric" placeholder="Tage" value="' + esc(J.w.tage) + '" data-wi="tage" style="background:rgba(255,255,255,.08);color:#F3F1EC"></div>'
       + '<input id="wmon" placeholder="Wann? z. B. März oder Ostern" value="' + esc(J.w.monat) + '" data-wi="monat" style="background:rgba(255,255,255,.08);color:#F3F1EC">'
-      + '<div class="row"><button class="gold" data-j="reise">Vorschläge holen</button><button data-j="chat" data-v="reise">Gespräch</button></div></section>';
+      + '<div class="row"><button class="gold" data-j="reise">Vorschläge holen</button></div></section>';
     const srt = will.sort((a, b) => ((b[1].prio ? 1 : 0) - (a[1].prio ? 1 : 0)) || a[1].n.localeCompare(b[1].n, 'de'));
     h += '<section class="card"><div class="head"><h2>Meine Liste</h2><span class="hint">' + will.length + ' Ziele</span></div>' + (srt.length ? '<div>' + srt.map(placeRow).join('') + '</div>' : '<p class="hint">Noch leer.</p>') + '</section>';
     h += addPlaceCard(false);
@@ -118,7 +115,7 @@ function weltView() {
 function placeRow([id, x]) {
   const sub = [x.region && x.region !== x.n ? x.region : '', x.land, x.war && x.besucht ? 'seit ' + fmtDate(x.besucht) : ''].filter(Boolean).join(' · ');
   const open = J.w.open === id;
-  return '<div class="place"><span class="fl">' + flag(x.cc) + '</span><span><b>' + (x.prio ? '⭐ ' : '') + esc(x.n) + '</b><small>' + esc(sub) + '</small>'
+  return '<div class="place" data-id="' + id + '"><span class="fl">' + flag(x.cc) + '</span><span><b>' + (x.prio ? '⭐ ' : '') + esc(x.n) + '</b><small>' + esc(sub) + '</small>'
     + (open ? '<span class="row" style="margin-top:8px">' + (!x.war ? '<button data-j="pwar" data-id="' + id + '">✓ War dort</button><button data-j="pstar" data-id="' + id + '">' + (x.prio ? 'Kein Favorit' : '⭐ Favorit') + '</button>' : '<button data-j="pwill" data-id="' + id + '">Doch noch nicht</button>') + '<button class="danger" data-j="pdel" data-id="' + id + '">Löschen</button></span>' : '')
     + '</span><span class="pact"><button data-j="popen" data-id="' + id + '" aria-label="Optionen">' + (open ? '✕' : '•••') + '</button></span></div>';
 }
@@ -222,6 +219,7 @@ async function mountGlobe() {
 function gTap(x, y, wrap) {
   let best = null, bd = 20 * G.dpr;
   G.hit.forEach((p) => { const dd = Math.hypot(p.x - x, p.y - y); if (dd < bd) { bd = dd; best = p; } });
+  if (best && best.id) { G.tip.hidden = true; G.pick = { id: best.id }; gPickShow(wrap); return; }
   if (best) {
     G.tip.textContent = flag(best.cc) + ' ' + best.n + (best.war ? '' : ' · Wunschziel');
     G.tip.style.left = best.x / G.dpr + 'px'; G.tip.style.top = best.y / G.dpr + 'px'; G.tip.hidden = false;
@@ -241,8 +239,11 @@ function gPickShow(wrap) {
   wrap = wrap || (G.canvas && G.canvas.parentElement); if (!wrap) return;
   if (!G.pickEl) { G.pickEl = document.createElement('div'); G.pickEl.className = 'gl-pick'; }
   if (!G.pick) { G.pickEl.remove(); return; }
-  const p = G.pick;
-  G.pickEl.innerHTML = p.loading ? '<div class="busyline"><span class="orb busy"></span>Welcher Ort ist das …</div>'
+  const p = G.pick, ex = p.id && orte.get(p.id);
+  if (p.id && !ex) { G.pick = null; G.pickEl.remove(); return; }
+  G.pickEl.innerHTML = ex ? '<b>' + flag(ex.cc) + ' ' + esc(ex.n) + '</b><small>' + esc([ex.region && ex.region !== ex.n ? ex.region : '', ex.land, ex.war ? 'war ich' : 'will ich hin'].filter(Boolean).join(' · ')) + '</small><div class="row">'
+      + (ex.war ? '<button data-j="gpmove">Will ich noch hin</button>' : '<button class="gold" data-j="gpmove">War ich</button>') + '<button class="danger" data-j="gprm">Entfernen</button><button data-j="gpx" aria-label="Schließen">✕</button></div>'
+    : p.loading ? '<div class="busyline"><span class="orb busy"></span>Welcher Ort ist das …</div>'
     : p.none ? '<b>Hier ist kein Ort</b><small>Tippe auf Land, um es zu markieren.</small><div class="row"><button data-j="gpx">Schließen</button></div>'
     : '<b>' + flag(p.cc) + ' ' + esc(p.n) + '</b><small>' + esc([p.region !== p.n ? p.region : '', p.land].filter(Boolean).join(', ')) + '</small><div class="row"><button class="gold" data-j="gpwar">War ich</button><button data-j="gpwill">Will ich hin</button><button data-j="gpx" aria-label="Schließen">✕</button></div>';
   wrap.appendChild(G.pickEl);
@@ -284,7 +285,7 @@ function drawGlobe(c) {
   sea.addColorStop(0, '#22304A'); sea.addColorStop(1, '#0E1524');
   ctx.beginPath(); path({ type: 'Sphere' }); ctx.fillStyle = sea; ctx.fill();
   ctx.beginPath(); path(d3.geoGraticule10()); ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = D; ctx.stroke();
-  const P = orte.all().map(([, x]) => x).filter((x) => isFinite(x.lat) && isFinite(x.lon));
+  const P = orte.all().map(([id, x]) => Object.assign({ id }, x)).filter((x) => isFinite(x.lat) && isFinite(x.lon));
   const vis = visitedCountries(P.filter((x) => x.war));
   G.world.forEach((f) => {
     ctx.beginPath(); path(f);
@@ -302,7 +303,7 @@ function drawGlobe(c) {
   P.forEach((x) => {
     if (!onFront([x.lon, x.lat])) return;
     const [px, py] = proj([x.lon, x.lat]); if (!inView([px, py])) return;
-    G.hit.push({ x: px, y: py, n: x.n, cc: x.cc, war: x.war });
+    G.hit.push({ x: px, y: py, n: x.n, cc: x.cc, war: x.war, id: x.id });
     if (x.war) {
       const g = ctx.createRadialGradient(px, py, 0, px, py, 9 * D);
       g.addColorStop(0, 'rgba(255,236,200,.9)'); g.addColorStop(1, 'rgba(232,207,159,0)');
@@ -365,7 +366,7 @@ function karriereView() {
   // Pfad
   h += '<div class="path2">';
   hist.forEach((s) => { h += '<div class="st2 done"><span class="node">' + (s.flagge || '✓') + '</span><div class="bx"><span class="meta">' + esc([s.von, s.bis].filter(Boolean).join(' – ')) + '</span><b>' + esc(s.rolle || '') + '</b><span class="co">' + esc([s.firma, s.land].filter(Boolean).join(' · ')) + '</span></div></div>'; });
-  h += '<div class="st2 now"><span class="node">' + (a.flagge || '📍') + '</span><button class="bx" data-j="kredit"><span class="meta"><span class="pill now">Jetzt</span>' + (a.seit ? 'seit ' + esc(a.seit) : '') + '</span><b>' + esc(a.rolle || 'Aktuelle Station eintragen') + '</b><span class="co">' + esc([a.firma, a.land].filter(Boolean).join(' · ')) + '</span></button></div>';
+  h += '<div class="st2 now"><span class="node">' + (a.flagge || '📍') + '</span><div class="bx"><span class="meta"><span class="pill now">Jetzt</span>' + (a.seit ? 'seit ' + esc(a.seit) : '') + '</span><b>' + esc(a.rolle || 'Aktuelle Station eintragen') + '</b><span class="co">' + esc([a.firma, a.land].filter(Boolean).join(' · ')) + '</span></div></div>';
   pl.forEach((s, i) => {
     const open = J.krOpen === i, isLast = i === pl.length - 1;
     h += '<div class="st2' + (isLast ? ' goal' : '') + '"><span class="node">' + esc(s.flagge || '•') + '</span><div class="bx"><button class="bx" style="box-shadow:none;padding:0;background:none" data-j="kropen" data-i="' + i + '"><span class="meta">' + (i === 0 ? '<span class="pill gold">Als Nächstes</span>' : '') + '<span>ab ' + esc(s.ab_jahr) + ' · ' + esc(s.dauer) + '</span><span>' + esc(s.stufe) + '</span></span><b>' + esc(s.titel) + '</b><span class="co">' + esc(s.firma + ' · ' + s.land) + '</span></button>';
@@ -378,13 +379,10 @@ function karriereView() {
     h += '</div></div>';
   });
   h += '</div>';
-  if (!pl.length && !J.krBusy) h += '<p class="hint">Noch kein Weg berechnet. Prüfe dein Profil unten und tippe auf „Weg berechnen“.</p>';
+  if (!pl.length && !J.krBusy) h += '<p class="hint">Noch kein Weg berechnet. Tippe auf „Weg berechnen“.</p>';
   if (k.plan) {
     if ((k.plan.jetzt_tun || []).length) h += '<section class="card"><div class="lbl">Jetzt tun</div><ul style="margin:0;padding-left:20px;display:grid;gap:6px">' + k.plan.jetzt_tun.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul></section>';
-    if (k.plan.zusammenfassung || (k.plan.risiken || []).length) h += '<details class="card more"><summary>Einschätzung und Risiken</summary><div style="display:grid;gap:8px"><p style="margin:0">' + esc(k.plan.zusammenfassung || '') + '</p><ul style="margin:0;padding-left:20px;display:grid;gap:4px">' + (k.plan.risiken || []).map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul><p class="hint">Berechnet am ' + fmtDate((k.plan.erstellt || '').slice(0, 10)) + (k.plan.basis ? ' ab „' + esc(k.plan.basis) + '“' : '') + '.</p></div></details>';
   }
-  h += krProfile(k);
-  h += krJobs();
   return h;
 }
 function krField(label, f, v, ph, type) { return '<label class="f">' + label + '<input data-kf="' + f + '" value="' + esc(v || '') + '" placeholder="' + esc(ph || '') + '"' + (type ? ' type="' + type + '"' : '') + '></label>'; }
@@ -423,12 +421,17 @@ const ym = () => today().slice(0, 7);
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-j]'); if (!b) return;
   const a = b.dataset.j;
-  if (a === 'brief') { const r = reports.get('james-' + today()); return r ? jSpeak(r.text) : jBriefing(false); }
+  if (a === 'brief') { const r = reports.get('james-' + today()); if (r || J.speaking) return jSpeak(r ? r.text : ''); return jBriefing(false).then(() => { const x = reports.get('james-' + today()); if (x) jSpeak(x.text); }); }
   if (a === 'briefnew') return jBriefing(true);
   if (a === 'chat') return openChat(b.dataset.v);
   // Welt
   if (a === 'wtab') { J.w.tab = b.dataset.v; J.w.res = []; J.w.open = ''; try { localStorage.setItem('james-welt', J.w.tab); } catch (err) {} return render(); }
-  if (a === 'popen') { J.w.open = J.w.open === b.dataset.id ? '' : b.dataset.id; return render(); }
+  if (a === 'popen') {
+    const prev = J.w.open; J.w.open = prev === b.dataset.id ? '' : b.dataset.id;
+    [prev, J.w.open].filter(Boolean).forEach((id) => { const x = orte.get(id), el = document.querySelector('.place[data-id="' + id + '"]'); if (x && el) el.outerHTML = placeRow([id, x]); });
+    return;
+  }
+  if (a === 'pwar' || a === 'pwill' || a === 'pstar' || a === 'pdel') { const y = window.scrollY; requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, y))); }
   if (a === 'pwar') { const x = orte.edit(b.dataset.id); x.war = true; x.besucht = today(); orte.touch(b.dataset.id, 0); J.w.open = ''; toast('🎉 ' + x.n + ' – auf dem Globus markiert'); return render(); }
   if (a === 'pwill') { const x = orte.edit(b.dataset.id); x.war = false; x.besucht = ''; orte.touch(b.dataset.id, 0); J.w.open = ''; return render(); }
   if (a === 'pstar') { const x = orte.edit(b.dataset.id); x.prio = !x.prio; orte.touch(b.dataset.id, 0); return render(); }
@@ -447,6 +450,12 @@ document.addEventListener('click', (e) => {
   if (a === 'gpwar') return gPickSave(true);
   if (a === 'gpwill') return gPickSave(false);
   if (a === 'gpx') { G.pick = null; return gPickShow(); }
+  if (a === 'gpmove' || a === 'gprm') {
+    const id = G.pick && G.pick.id, x = id && orte.get(id); if (!x) return;
+    if (a === 'gprm') { const old = clone(x); orte.del(id); toast(x.n + ' entfernt', () => { orte.put(id, old, 0); G.cKey = ''; render(); }); }
+    else { const e = orte.edit(id); e.war = !x.war; e.besucht = e.war ? today() : ''; orte.touch(id, 0); toast(x.n + (e.war ? ' – war ich' : ' – will ich hin')); }
+    G.pick = null; G.cKey = ''; gPickShow(); return render();
+  }
   // Karriere
   if (a === 'krplan') return krReplan();
   if (a === 'kropen') { J.krOpen = J.krOpen === +b.dataset.i ? -1 : +b.dataset.i; return render(); }
@@ -493,7 +502,7 @@ document.addEventListener('keydown', (e) => {
     const n = document.querySelector('[data-kt="' + t.dataset.kt + '"]'); if (n) n.focus();
   }
 });
-document.addEventListener('toggle', (e) => { if (e.target && e.target.id === 'krprof') J.krEdit = e.target.open; }, true);
+document.addEventListener('toggle', (e) => { if (e.target && e.target.id === 'wwar') J.w.warOpen = e.target.open; }, true);
 // Neue Daten vom Server (z. B. Chat auf einem anderen Gerät) auch im offenen Chat zeigen
 
 /* ============================================================

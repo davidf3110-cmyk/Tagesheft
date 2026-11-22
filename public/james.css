@@ -139,6 +139,9 @@ input:focus,textarea:focus,select:focus{background:var(--card);border-color:var(
 .jc{position:relative;overflow:hidden;border-radius:28px;padding:20px 20px 18px;color:#F3F1EC;display:grid;gap:14px;
   background:radial-gradient(120% 90% at 100% 0%,rgba(207,174,116,.28),transparent 55%),linear-gradient(165deg,#1C1C1F,#0D0D0F);box-shadow:var(--shadow-lift)}
 .jc-top{display:flex;align-items:center;gap:12px}
+.jc-btn{all:unset;cursor:pointer;display:flex;align-items:center;gap:14px;-webkit-tap-highlight-color:transparent}
+.jc-btn b{font-size:20px!important}
+.jc-btn .orb{width:44px;height:44px}
 .orb{width:40px;height:40px;border-radius:50%;flex:none;position:relative;
   background:radial-gradient(circle at 35% 30%,#FFF4DC,#D9BC86 40%,#8A6633 80%);box-shadow:0 0 24px rgba(217,188,134,.45)}
 .orb.busy{animation:breathe 1.6s ease-in-out infinite}

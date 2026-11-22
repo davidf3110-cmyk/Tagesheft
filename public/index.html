@@ -805,25 +805,15 @@ function heuteTag(){
 }
 const isWE=k=>{const g=parse(k).getDay();return g===0||g===6};
 function berichtCard(k){
-  const t=today(),r=reports.get('tag-'+k),at=r&&r.at?new Date(r.at):null;
-  const neu=!!r&&(Array.isArray(r.mails)||!!r.wetter||Array.isArray(r.notes));
-  const stand=at&&!isNaN(at)?'Stand '+pad(at.getHours())+':'+pad(at.getMinutes()):k>t?'kommt am Morgen':k===t?'kommt um '+(isWE(k)?'7:45':'6:45'):'';
-  let h='<section class="card"><div class="head"><h2>Dein Tag</h2><span class="hint">'+stand+'</span></div>';
-  if(neu&&(r.notes||[]).length)h+='<div class="notes">'+r.notes.slice(0,3).map(n=>'<p class="note1">'+inl(n)+'</p>').join('')+'</div>';
-  /* Mails */
-  h+='<div class="sec"><div class="sh"><span class="lbl">Mails</span>'+(neu&&Array.isArray(r.mails)&&r.mails.length?'<span class="hint">'+r.mails.length+'</span>':'')+'</div>';
-  if(neu){
-    const M=Array.isArray(r.mails)?r.mails:[];
-    const row=m=>'<div class="ml"><b>'+esc(m.w||'')+(m.b?' · '+esc(m.b):'')+'</b>'+(m.a?'<small>'+esc(m.a)+'</small>':'')+'</div>';
-    h+=M.length?'<div>'+M.slice(0,8).map(row).join('')+'</div>'+(M.length>8?'<details class="more"><summary>'+(M.length-8)+' weitere</summary><div>'+M.slice(8).map(row).join('')+'</div></details>':''):'<p class="hint">Nichts Neues.</p>';
-  }else h+='<p class="hint">'+(r?'Steht im Bericht unten.':k>=t?'Kommen mit dem Bericht.':'Kein Bericht für diesen Tag.')+'</p>';
-  h+='</div>';
-  /* Wetter */
-  if(neu&&r.wetter){const w=r.wetter;h+='<div class="sec"><span class="lbl">Wetter</span><p class="line">'+(has(w.lo)&&has(w.hi)?'<b>'+esc(w.lo)+'–'+esc(w.hi)+' °C</b>':'')+(w.t?(has(w.lo)?' · ':'')+esc(w.t):'')+(w.ort?' <span class="mute">· '+esc(w.ort)+'</span>':'')+'</p></div>'}
-  /* Termine */
-  h+=termineSec(k);
-  if(r&&!neu&&r.text)h+='<details class="more" id="repold"><summary>Bericht im alten Format</summary><div class="md">'+md(r.text)+'</div></details>';
-  return h+'</section>';
+  const t=today(),list=tdList(k),later=tdLater(k),openCnt=todos.all().filter(([,x])=>x.st!=='done').length;
+  let h='<section class="card"><div class="head"><h2>To-dos</h2><span class="hint">'+openCnt+' offen</span></div>';
+  if(!todos.ready&&MODE==='db'&&!list.length)h+='<p class="hint">Lade …</p>';
+  else if(!list.length)h+='<p class="hint">'+(k===t?'Heute nichts fällig.':'Nichts fällig.')+'</p>';
+  else h+='<div>'+list.map(([id,x])=>tdRow(id,x,k)).join('')+'</div>';
+  if(later.length)h+='<details class="more" id="tdlater"'+(tdLaterOpen?' open':'')+'><summary>Später und ohne Datum ('+later.length+')</summary><div>'+later.map(([id,x])=>tdRow(id,x,k)).join('')+'</div></details>';
+  h+='<form class="add" id="tdform" autocomplete="off"><input id="tdnew" placeholder="Neues To-do'+(k===t?'':' für '+fmtD(k))+'" value="'+esc(tdDraft)+'" data-in="td" aria-label="Neues To-do"><button class="pri plus" type="submit" aria-label="To-do hinzufügen">+</button></form></section>';
+  h+='<section class="card"><div class="head"><h2>Termine</h2></div>'+termineSec(k).replace('<div class="sec"><span class="lbl">Termine</span>','<div>')+'</section>';
+  return h;
 }
 function calState(s){
   if(!mcpReady)return '<p class="hint">Verbinde …</p>';
@@ -1413,7 +1403,7 @@ function render(){
   $('#strip').hidden=noWeek;
   if(!noWeek)$('#strip').innerHTML=stripHTML();
   $('#hdate').textContent=WDL[new Date().getDay()]+', '+new Date().getDate()+'. '+MON[new Date().getMonth()];
-  $('#ttl').textContent=view==='heute'?jamesGreeting():({todos:'To-dos',training:'Training',einkauf:'Einkauf',gebet:'Gebet',orte:'Welt',jobs:'Karriere',wecker:'Wecker',einstellungen:'Einstellungen'}[view]||'James');
+  $('#ttl').textContent=view==='heute'?'James':({todos:'To-dos',training:'Training',einkauf:'Einkauf',gebet:'Gebet',orte:'Welt',jobs:'Karriere',wecker:'Wecker',einstellungen:'Einstellungen'}[view]||'James');
   const ae=document.activeElement,keep=ae&&ae.id&&$('#view').contains(ae)?ae.id:'';let pos=null;try{pos=keep?ae.selectionStart:null}catch(e){}
   let h='';
   if(view==='heute')h=sub==='woche'?heuteWoche():heuteTag();
