@@ -378,3 +378,16 @@ header{display:flex;align-items:center;justify-content:flex-start;gap:14px;flex-
 .losung blockquote.lt{font-size:16px;color:var(--mute)}
 .losung cite{display:block;font-family:var(--f-ui);font-style:normal;font-size:13px;font-weight:650;color:var(--gold);margin-top:6px}
 .losung .src{font-size:11px;color:var(--mute)}
+/* Nachttisch-Modus */
+#night{position:fixed;inset:0;z-index:90;background:#000;color:#D9BC86;display:grid;place-items:center;padding:24px;animation:slide .4s var(--ease)}
+.n-in{display:grid;justify-items:center;gap:16px;text-align:center;max-width:560px;width:100%}
+.n-in .orb{width:46px;height:46px;opacity:.9}
+.n-clock{font-size:min(28vw,150px);font-weight:200;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums;color:#E8CF9F;opacity:.85}
+.n-sub{margin:0;font-size:18px;color:rgba(232,207,159,.75)}
+.n-hint{margin:0;font-size:14px;color:rgba(232,207,159,.45);max-width:420px;line-height:1.5}
+.n-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+#night button{background:rgba(232,207,159,.1);color:#E8CF9F;border-radius:999px;min-height:46px;padding:10px 20px}
+#night .n-big{width:min(320px,90vw);min-height:150px;border-radius:32px;font-size:22px;font-weight:650;display:grid;gap:6px;place-content:center;background:linear-gradient(145deg,#E8CF9F,#B8915A);color:#1A1407}
+#night .n-big small{font-size:13px;font-weight:500;opacity:.7}
+.n-text{font-size:19px;line-height:1.55;color:#F3E6CC;text-align:left;max-height:50vh;overflow:auto}
+.wk-night{background:linear-gradient(160deg,color-mix(in srgb,var(--gold) 14%,var(--card)),var(--card) 65%)}

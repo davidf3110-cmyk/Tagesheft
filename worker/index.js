@@ -58,7 +58,7 @@ async function api(req, env, url) {
   // Der Wecker-Kurzbefehl darf nur das Briefing abrufen, mit eigenem Code (?k=).
   let weck = false;
   const wkKey = url.searchParams.get('k');
-  if ((p === '/api/briefing' || p === '/api/radio') && wkKey) {
+  if ((p === '/api/briefing' || p === '/api/radio' || p === '/api/radio/live') && wkKey) {
     const r = await env.DB.prepare('SELECT v FROM secrets WHERE k=?1').bind('weckcode').first();
     weck = !!(r && r.v && r.v.length === wkKey.length && r.v === wkKey);
   }
@@ -156,6 +156,16 @@ async function api(req, env, url) {
     const doc = await briefing(env, { fresh: url.searchParams.get('fresh') === '1', events });
     if (url.searchParams.get('format') === 'text') return new Response(doc.text, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
     return json(doc);
+  }
+
+  // Durchgehender Radio-Stream (gleiche Adresse wie die App, damit die App die Lautstärke regeln kann).
+  if (p === '/api/radio/live' && req.method === 'GET') {
+    const cfg = (await getDoc(env, 'settings', 'wecker')) || {};
+    const key = url.searchParams.get('s') || cfg.sender || 'srf3';
+    const src = RADIO[key] ? RADIO[key].url : RADIO.srf3.url;
+    const r = await fetch(src, { headers: { 'user-agent': 'James-Wecker/1.0' } });
+    if (!r.ok || !r.body) return json({ error: 'radio_failed' }, 502);
+    return new Response(r.body, { headers: { 'content-type': 'audio/mpeg', 'cache-control': 'no-store' } });
   }
 
   if (p === '/api/radio/prepare' && req.method === 'POST') {

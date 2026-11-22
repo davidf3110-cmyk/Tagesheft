@@ -127,6 +127,21 @@ async function weather(P) {
   }
 }
 
+// Schlusssätze im Jarvis-Stil, falls der Tagesbericht keinen eigenen liefert.
+const SCHLUSS = [
+  'Auf geht’s, Sir. Keine Ausreden – der Tag gehört dir.',
+  'Sie denken vielleicht, du schaffst das nicht. Wir beide wissen, dass du ihnen heute das Gegenteil beweist.',
+  'Der zukünftige CEO steht nicht im Bett herum. Aufstehen, David.',
+  'Ich habe die Zahlen gesehen. Du packst das. Jetzt los.',
+  'Große Karrieren werden an gewöhnlichen Dienstagen gebaut. Und an allen anderen Tagen auch.',
+  'Disziplin schlägt Talent, wenn Talent schläft. Du schläfst nicht mehr.',
+  'Ich glaube an dich, Sir. Ganz ohne Ironie.',
+  'Heute ist ein guter Tag, um besser zu sein als gestern. Ich zähle auf dich.',
+  'Die Welt wartet nicht. Gut, dass du schneller bist.',
+  'Kaffee, Fokus, Wirkung. In dieser Reihenfolge, David.',
+];
+
+// Gesprochenes Morgen-Briefing: Termine, To-dos, wichtige Mails, Wetter, Depot – und ein persönlicher Schluss.
 export async function briefing(env, { fresh = false, events = null } = {}) {
   const t = todayLocal();
   const id = 'james-' + t;
@@ -134,34 +149,43 @@ export async function briefing(env, { fresh = false, events = null } = {}) {
   if (!fresh) {
     const cached = await one(env, 'reports', id);
     const stale = rep && rep.at && cached && cached.at && Date.parse(rep.at) > Date.parse(cached.at);
-    if (cached && cached.text && !stale) return cached;
+    if (cached && cached.text && cached.v === 2 && !stale) return cached;
   }
   const P = await profile(env);
-  const [todos, sessions, days] = await Promise.all(['todos', 'sessions', 'days'].map((c) => all(env, c)));
+  const [todos, sessions] = await Promise.all(['todos', 'sessions'].map((c) => all(env, c)));
   const W = await weather(P);
   const d = parse(t);
   const S = [];
   const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).find((x) => x.type === 'hour').value);
-  S.push(`${hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend'}, ${P.name}. Heute ist ${WDL[d.getUTCDay()]}, der ${d.getUTCDate()}. ${MON[d.getUTCMonth()]}.`);
-  if (W) S.push(`In ${P.ort} ${W.lo} bis ${W.hi} Grad, ${W.t}${W.regen >= 40 ? ', Regenwahrscheinlichkeit ' + W.regen + ' Prozent – nimm einen Schirm mit' : ''}.`);
-  if (events && events.length) {
-    const ev = events.filter((e) => !/Arbeit Roche|🏋|🏃|🏊|🇪🇸|🐍|📖|⛪/.test(e.summary));
-    if (ev.length) S.push('Termine: ' + list(ev.slice(0, 4).map((e) => (e.start.dateTime ? e.start.dateTime.slice(11, 16) + ' ' : '') + e.summary)) + '.');
-  }
+  S.push(`${hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend'}, ${P.name}. Es ist ${WDL[d.getUTCDay()]}, der ${d.getUTCDate()}. ${MON[d.getUTCMonth()]}.`);
+
+  // Wetter
+  const w = W || (rep && rep.wetter);
+  if (w) S.push(`Draußen ${w.lo} bis ${w.hi} Grad, ${w.t}${W && W.regen >= 50 ? ' – nimm einen Schirm mit' : ''}.`);
+
+  // Termine: aus dem Tagesbericht (Google Kalender), sonst aus dem iCal-Link
+  let tm = (rep && Array.isArray(rep.termine) ? rep.termine : null);
+  if (!tm && events) tm = events.filter((e) => !/Arbeit Roche|🏋|🏃|🏊|🇪🇸|🐍|📖|⛪/.test(e.summary)).map((e) => ({ z: e.start.dateTime ? e.start.dateTime.slice(11, 16) : '', n: e.summary }));
+  if (tm && tm.length) S.push(`Heute ${tm.length === 1 ? 'steht ein Termin an' : 'stehen ' + tm.length + ' Termine an'}: ${list(tm.slice(0, 4).map((x) => (x.z ? 'um ' + x.z.replace(':00', '') + ' Uhr ' : '') + x.n))}.`);
+  else if (tm) S.push('Dein Kalender ist heute frei.');
+
+  // To-dos
   const open = todos.filter(([, x]) => x.st !== 'done');
   const late = open.filter(([, x]) => x.due && x.due < t), now = open.filter(([, x]) => x.due === t);
-  if (now.length) S.push(`Heute fällig: ${list(now.slice(0, 4).map(([, x]) => x.t))}.`);
+  if (now.length) S.push(`Auf deiner Liste für heute: ${list(now.slice(0, 4).map(([, x]) => x.t))}.`);
   if (late.length) S.push(`${late.length === 1 ? 'Ein To-do ist' : late.length + ' To-dos sind'} überfällig${late.length <= 2 ? ': ' + list(late.map(([, x]) => x.t)) : ''}.`);
-  if (!now.length && !late.length) S.push('Heute ist kein To-do fällig.');
-  const p = PLAN[d.getUTCDay()];
-  const done = sessions.find(([k]) => k === t);
-  if (p !== 'free' && !(done && done[1].type)) S.push(`Training laut Plan: ${TN[p]}.`);
-  const y = addD(t, -1), ys = sessions.find(([k]) => k === y);
-  if (ys && sessLine(y, ys[1])) S.push(`Gestern: ${TN[ys[1].type || 'gym'] || 'Training'} erledigt – stark.`);
-  const dmap = Object.fromEntries(days), mon = addD(t, -((d.getUTCDay() + 6) % 7));
-  let g = 0, n = 0;
-  for (let k = mon; k < t; k = addD(k, 1)) { n++; if (dmap[k] && dmap[k].h && dmap[k].h.gebet) g++; }
-  if (n) S.push(`Gebetet an ${g} von ${n} Tagen dieser Woche.`);
+  if (!now.length && !late.length) S.push('Keine fälligen To-dos.');
+
+  // Wichtige Mails
+  const mails = ((rep && rep.mails) || []).filter((m) => m && m.w && !/newsletter/i.test(m.w) && !/nur info|abmelden|montag/i.test(m.a || ''));
+  if (mails.length) S.push(`Wichtige Mails: ${list(mails.slice(0, 3).map((m) => m.w + (m.b ? ' wegen ' + m.b : '') + (m.a ? ', ' + m.a : '')))}.`);
+  else if (rep && Array.isArray(rep.mails)) S.push('Keine wichtigen Mails.');
+
+  // Training laut Plan
+  const p = PLAN[d.getUTCDay()], done = sessions.find(([k]) => k === t);
+  if (p !== 'free' && !(done && done[1].type)) S.push(`Training heute: ${TN[p]}.`);
+
+  // Depot
   const dp = rep && rep.depot;
   if (dp && isFinite(dp.wert)) {
     const f = (v) => Math.round(Math.abs(v)).toLocaleString('de-DE');
@@ -169,11 +193,12 @@ export async function briefing(env, { fresh = false, events = null } = {}) {
     if (isFinite(dp.diff) && dp.diff !== 0) l += `, ${dp.diff > 0 ? 'plus' : 'minus'} ${f(dp.diff)}` + (isFinite(dp.pct) ? ` oder ${String(Math.abs(Math.round(dp.pct * 10) / 10)).replace('.', ',')} Prozent` : '') + ' seit gestern';
     S.push(l + '.');
   }
-  if (rep && rep.losung && rep.losung.text) S.push('Die Losung für heute: ' + rep.losung.text + (rep.losung.ref ? ' – ' + rep.losung.ref + '.' : ''));
-  if (rep && rep.impuls) S.push(rep.impuls);
-  S.push('Ich wünsch dir einen guten Tag.');
+
+  // Persönlicher Schluss im Jarvis-Stil
+  const n = Math.floor(Date.parse(t) / 864e5);
+  S.push((rep && (rep.schluss || rep.impuls)) || SCHLUSS[n % SCHLUSS.length]);
   const text = S.join(' ');
-  const doc = { type: 'james', d: t, text, wetter: W, at: new Date().toISOString() };
+  const doc = { type: 'james', v: 2, d: t, text, wetter: W, at: new Date().toISOString() };
   await put(env, 'reports', id, doc);
   return doc;
 }

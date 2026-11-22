@@ -563,6 +563,7 @@ function weckerHTML() {
   let h = '<div class="ch-head"><span class="orb"></span><b>Wecker</b><button data-j="weckclose">Fertig</button></div><div class="ch-body wk">';
   h += '<section class="wk-hero"><span class="eyebrow">Nächstes Wecken</span><div class="wk-time">' + (n ? pad(n.getHours()) + ':' + pad(n.getMinutes()) : '–') + '</div><span class="wk-sub">' + (n ? WDL[n.getDay()] + ' · in ' + (diff >= 60 ? Math.floor(diff / 60) + ' h ' : '') + (diff % 60) + ' min' : 'Kein Tag aktiv') + '</span>'
     + '<div class="wk-flow"><span>🎵<small>' + w.sec + ' s ' + (w.musik === 'radio' ? esc(sn) : MUSIK[w.musik]) + '</small></span><i></i><span><span class="orb" style="width:22px;height:22px;display:inline-block"></span><small>James-Briefing</small></span></div></section>';
+  h += '<section class="card wk-night"><h3>Nachttisch-Modus</h3><p class="hint">Der schönste Weg: Am Abend hier aktivieren und James am Ladekabel offen lassen. Zur Weckzeit startet leise das Radio und wird langsam lauter. Sag „Guten Morgen“ (oder tippe), dann wird die Musik leise und James spricht dein Briefing darüber. Die Weckzeit stellst du direkt hier in der App ein.</p><div class="row"><button class="pri" data-j="nightstart">🌙 Nachttisch-Modus starten</button></div></section>';
   h += '<section class="card"><h3>Weckzeiten</h3><p class="hint">Kein Weckton und kein iPhone-Wecker nötig: Zur Uhrzeit startet die Musik, danach spricht James.</p>'
     + '<div class="grid2"><label class="f">Werktags<input type="time" value="' + esc(w.wt) + '" data-wk="wt"></label><label class="f">Wochenende<input type="time" value="' + esc(w.we) + '" data-wk="we"></label></div>'
     + '<div class="chips wk-days">' + WD7.map(([d, l]) => '<button data-j="wkday" data-v="' + d + '" class="' + (w.days.includes(d) ? 'on' : '') + '">' + l + '</button>').join('') + '</div></section>';
@@ -577,7 +578,7 @@ function weckerHTML() {
     apple: '<li>Aktion <b>Musik wiedergeben</b> → Song, Playlist oder Radiosender auswählen.</li><li>Aktion <b>Warten</b> → ' + w.sec + ' Sekunden, dann <b>Wiedergabe/Pause</b> → „Pause“.</li>',
     datei: '<li>Aktion <b>Datei abrufen</b> → deine Musikdatei in iCloud Drive („Dokumentauswahl anzeigen“ aus).</li><li>Aktion <b>Ton wiedergeben</b> (englisch „Play Sound“) → „Datei“.</li>',
   }[w.musik];
-  h += '<section class="card wk-setup"><h3>Einmal einrichten (5 Minuten)</h3><p class="hint">Web-Apps dürfen das iPhone nicht selbst aufwecken – eine Automation in der Kurzbefehle-App schon. Sie läuft von allein zur eingestellten Zeit.</p><ol>'
+  h += '<section class="card wk-setup"><h3>Alternative: Kurzbefehl (ohne offene App)</h3><p class="hint">Läuft auch bei gesperrtem iPhone, aber mit Siri-Stimme und ohne Musik unter der Ansage. Die Uhrzeit stellst du dabei in der Automation ein, nicht hier.</p><ol>'
     + '<li><b>Kurzbefehle</b> → <b>Automation</b> → <b>+</b> → <b>Tageszeit</b> → ' + esc(w.wt) + ', <b>Wöchentlich</b> an deinen Werktagen → <b>Sofort ausführen</b> → <b>Neuer leerer Kurzbefehl</b>.</li>'
     + '<li>Aktion <b>Lautstärke festlegen</b> → 35 %.</li>'
     + music
@@ -668,7 +669,14 @@ document.addEventListener('input', (e) => {
   settings.touch('wecker', 700);
   if (t.dataset.wk === 'sec') { const l = t.closest('label'); if (l) l.firstChild.textContent = 'Länge: ' + t.value + ' Sekunden'; }
 });
-document.addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.wk && e.target.dataset.wk !== 'sec') refreshWecker(); });
+document.addEventListener('change', (e) => {
+  const t = e.target; if (!t.dataset || !t.dataset.wk) return;
+  const w = settings.edit('wecker'), cur = wk();
+  Object.keys(cur).forEach((k) => { if (w[k] == null) w[k] = cur[k]; });
+  w[t.dataset.wk] = t.dataset.wk === 'sec' ? +t.value : t.value.trim();
+  settings.touch('wecker', 0);
+  if (t.dataset.wk !== 'sec') refreshWecker();
+});
 
 /* ============================================================
    Herrnhuter Losung (kommt mit dem Tagesbericht: reports/tag-<Datum>.losung)
@@ -680,3 +688,97 @@ function losungCard() {
     + (l.lehr ? '<blockquote class="lt">' + esc(l.lehr) + '<cite>' + esc(l.lehrRef || '') + '</cite></blockquote>' : '')
     + '<small class="src">Herrnhuter Losungen · © Evangelische Brüder-Unität – Herrnhuter Brüdergemeine</small></section>';
 }
+
+/* ============================================================
+   Nachttisch-Wecker: James bleibt über Nacht offen, weckt mit Musik,
+   und auf „Guten Morgen“ wird die Musik leiser und James spricht.
+   ============================================================ */
+const N = { on: false, fired: false, speaking: false, done: false, ctx: null, gain: null, audio: null, lock: null, rec: null, t: 0, at: null, text: '' };
+function bestVoice() {
+  const vs = (window.speechSynthesis ? speechSynthesis.getVoices() : []).filter((v) => /^de/i.test(v.lang));
+  return vs.find((v) => /premium/i.test(v.name)) || vs.find((v) => /enhanced|erweitert/i.test(v.name)) || vs.find((v) => /anna|markus|helena|martin|yannick|petra/i.test(v.name)) || vs[0] || null;
+}
+async function nightLock() { try { if ('wakeLock' in navigator) N.lock = await navigator.wakeLock.request('screen'); } catch (e) { N.lock = null; } }
+document.addEventListener('visibilitychange', () => { if (N.on && document.visibilityState === 'visible') nightLock(); });
+async function nightStart() {
+  const w = wk();
+  if (!w.days.length) { toast('Kein Wecktag aktiv.'); return; }
+  if (!J.weckCode) { try { J.weckCode = (await TH.call('/wecker/code')).code; } catch (e) { toast('Keine Verbindung.'); return; } }
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  N.ctx = new Ctx(); N.gain = N.ctx.createGain(); N.gain.gain.value = 0.0001; N.gain.connect(N.ctx.destination);
+  N.audio = new Audio(); N.audio.crossOrigin = 'anonymous'; N.audio.preload = 'none'; N.audio.setAttribute('playsinline', '');
+  N.ctx.createMediaElementSource(N.audio).connect(N.gain);
+  // iOS gibt Ton nur nach einem Tipp frei – deshalb jetzt einmal kurz „entsperren“
+  const buf = N.ctx.createBuffer(1, 1, 22050), src = N.ctx.createBufferSource(); src.buffer = buf; src.connect(N.ctx.destination); src.start(0);
+  try { speechSynthesis.speak(new SpeechSynthesisUtterance(' ')); } catch (e) {}
+  N.on = true; N.fired = N.speaking = N.done = false; N.text = ''; N.at = nextAlarm(w);
+  await nightLock();
+  nightRender();
+  clearInterval(N.t); N.t = setInterval(nightTick, 1000);
+}
+function nightTick() {
+  const c = document.getElementById('nclock');
+  if (c) { const d = new Date(); c.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  if (N.on && !N.fired && N.at && Date.now() >= N.at.getTime()) nightFire();
+}
+function ramp(v, sec) { const g = N.gain.gain, t = N.ctx.currentTime; g.cancelScheduledValues(t); g.setValueAtTime(Math.max(0.0001, g.value), t); g.linearRampToValueAtTime(v, t + sec); }
+function nightFire() {
+  N.fired = true; N.ctx.resume();
+  N.audio.src = '/api/radio/live?k=' + encodeURIComponent(J.weckCode) + '&s=' + encodeURIComponent(wk().sender || 'srf3');
+  N.audio.play().catch(() => {});
+  ramp(0.85, 40); // sanft lauter werden
+  nightListen(); nightRender();
+}
+function nightListen() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR || !N.on || N.speaking || N.done) return;
+  try {
+    const r = new SR(); r.lang = 'de-DE'; r.continuous = true; r.interimResults = true;
+    r.onresult = (e) => { const txt = [...e.results].map((x) => x[0].transcript).join(' '); if (/guten morgen|morgen|james/i.test(txt)) { try { r.stop(); } catch (_) {} nightBriefing(); } };
+    r.onend = () => { if (N.on && N.fired && !N.speaking && !N.done) setTimeout(nightListen, 600); };
+    r.start(); N.rec = r;
+  } catch (e) {}
+}
+async function nightBriefing() {
+  if (N.speaking || N.done) return;
+  N.speaking = true;
+  if (!N.fired) { N.fired = true; N.ctx.resume(); }
+  ramp(0.1, 1.5); // Musik leiser, sie läuft unter der Stimme weiter
+  let text = 'Guten Morgen, ' + jName() + '.';
+  try { text = (await TH.call('/briefing')).text || text; } catch (e) {}
+  N.text = text; nightRender();
+  const u = new SpeechSynthesisUtterance(text); u.lang = 'de-DE'; u.rate = 0.98; u.pitch = 1;
+  const v = bestVoice(); if (v) u.voice = v;
+  u.onend = u.onerror = () => { N.speaking = false; N.done = true; ramp(0.5, 3); nightRender(); };
+  setTimeout(() => speechSynthesis.speak(u), 1600);
+}
+function nightStop() {
+  N.on = false; clearInterval(N.t);
+  try { N.audio.pause(); N.audio.removeAttribute('src'); N.audio.load(); } catch (e) {}
+  try { N.rec && N.rec.stop(); } catch (e) {}
+  try { speechSynthesis.cancel(); } catch (e) {}
+  try { N.lock && N.lock.release(); } catch (e) {}
+  try { N.ctx && N.ctx.close(); } catch (e) {}
+  const el = document.getElementById('night'); if (el) el.remove();
+  document.body.classList.remove('lock');
+}
+function nightRender() {
+  let el = document.getElementById('night');
+  if (!N.on) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('div'); el.id = 'night'; document.body.appendChild(el); document.body.classList.add('lock'); }
+  const d = new Date(), at = N.at;
+  let body;
+  if (!N.fired) body = '<p class="n-sub">Wecker ' + (at ? WDL[at.getDay()] + ', ' + pad(at.getHours()) + ':' + pad(at.getMinutes()) : '–') + '</p><p class="n-hint">Lass James offen und am Ladekabel. Das Display bleibt dunkel an.' + (N.lock ? '' : ' Stell zur Sicherheit „Automatische Sperre“ auf „Nie“.') + '</p><div class="n-row"><button data-j="nighttest">Jetzt testen</button><button data-j="nightstop">Beenden</button></div>';
+  else if (!N.speaking && !N.done) body = '<p class="n-sub">Guten Morgen ☀︎</p><button class="n-big" data-j="nightbrief">Sag „Guten Morgen“<small>oder tippe hier</small></button><div class="n-row"><button data-j="nightstop">Aus</button></div>';
+  else body = '<div class="n-text">' + (N.text ? esc(N.text) : '<span class="busyline"><span class="orb busy"></span>Einen Moment …</span>') + '</div><div class="n-row">' + (N.done ? '<button data-j="nightmute">Musik aus</button>' : '') + '<button data-j="nightstop">Fertig</button></div>';
+  el.innerHTML = '<div class="n-in"><span class="orb' + (N.speaking ? ' busy' : '') + '"></span><div id="nclock" class="n-clock">' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + '</div>' + body + '</div>';
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-j]'); if (!b) return;
+  const a = b.dataset.j;
+  if (a === 'nightstart') return nightStart();
+  if (a === 'nightbrief') return nightBriefing();
+  if (a === 'nighttest') return nightFire();
+  if (a === 'nightstop') return nightStop();
+  if (a === 'nightmute') { ramp(0.0001, 2); setTimeout(() => { try { N.audio.pause(); } catch (err) {} }, 2100); b.remove(); return; }
+});
