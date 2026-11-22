@@ -26,6 +26,10 @@ const FILES = {
   '/geo-extra.json': [typeof geoExtra === 'string' ? geoExtra : JSON.stringify(geoExtra), 'application/json; charset=utf-8', 'max-age=604800'],
   '/icon.svg': [icon, 'image/svg+xml', 'max-age=86400'],
   '/icon-180.png': [icon180, 'image/png', 'max-age=86400'],
+  '/james-icon-180.png': [icon180, 'image/png', 'max-age=86400'],
+  '/apple-touch-icon.png': [icon180, 'image/png', 'max-age=86400'],
+  '/apple-touch-icon-precomposed.png': [icon180, 'image/png', 'max-age=86400'],
+  '/james-icon-512.png': [icon512, 'image/png', 'max-age=86400'],
   '/icon-192.png': [icon192, 'image/png', 'max-age=86400'],
   '/icon-512.png': [icon512, 'image/png', 'max-age=86400'],
 };
