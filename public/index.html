@@ -836,22 +836,15 @@ function evRow(e,withDay){
 }
 let calUpOpen=false;
 function termineSec(k){
-  const c=CAL[k],t=today(),r=reports.get('tag-'+k),rt=r&&Array.isArray(r.termine)?r.termine:null;
-  if((!c||(c.st==='err'&&c.code==='no_calendar'))&&rt!=null)
-    return '<div class="sec"><span class="lbl">Termine</span>'+(rt.length?'<div>'+rt.map(e=>'<div class="ev'+(/Geburtstag/i.test(e.n||'')?' bday':'')+'"><time>'+esc(e.z||'ganztägig')+'</time><span class="t">'+esc(e.n||'')+'</span></div>').join('')+'</div>':'<p class="hint">'+(k===t?'Heute keine Termine.':'Keine Termine.')+'</p>')+'</div>';
-  let h='<div class="sec"><span class="lbl">Termine</span>'+calState(c);
-  if(c&&c.events){
-    const ev=c.events.filter(e=>!ownEv(e));
-    h+=ev.length?'<div>'+ev.map(e=>evRow(e,false)).join('')+'</div>':'<p class="hint">'+(k===t?'Heute keine Termine.':'Keine Termine.')+'</p>';
-    if(c.st==='stale')h+='<p class="hint">Zeigt den letzten Stand.</p>';
-  }
-  if(k===t){
-    const u=CAL['up:'+t];
-    if(u&&u.events){
-      const ev=u.events.filter(e=>!ownEv(e)),a=ev.slice(0,5),b=ev.slice(5);
-      if(ev.length)h+='<div class="evday">Nächste 7 Tage</div><div>'+a.map(e=>evRow(e,true)).join('')+'</div>'+(b.length?'<details class="more" id="calup"'+(calUpOpen?' open':'')+'><summary>'+b.length+' weitere</summary><div>'+b.map(e=>evRow(e,true)).join('')+'</div></details>':'');
-    }
-  }
+  const t=today(),r=reports.get('tag-'+k);
+  // Jüngster Tagesbericht der letzten 7 Tage für die Vorschau (falls der heutige noch fehlt)
+  let src=r;if(!src||!Array.isArray(src.woche)){const id=reports.ids().filter(x=>/^tag-\d{4}-\d\d-\d\d$/.test(x)&&x.slice(4)<=k&&x.slice(4)>=iso(addD(parse(k),-7))).sort().pop();if(id)src=reports.get(id)}
+  const rt=r&&Array.isArray(r.termine)?r.termine:null;
+  const row=(e,day)=>'<div class="ev'+(/Geburtstag/i.test(e.n||'')?' bday':'')+'"><time>'+(day?WD[parse(e.d).getDay()]+' '+parse(e.d).getDate()+'.':esc(e.z||'ganztägig'))+'</time><span class="t">'+(day&&e.z?esc(e.z)+' ':'')+esc(e.n||'')+'</span></div>';
+  let h='<div class="sec"><span class="lbl">Termine</span>';
+  h+=rt==null?'<p class="hint">Die Termine kommen morgens mit dem Tagesbericht.</p>':rt.length?'<div>'+rt.map(e=>row(e,false)).join('')+'</div>':'<p class="hint">'+(k===t?'Heute keine Termine.':'Keine Termine.')+'</p>';
+  const wk=src&&Array.isArray(src.woche)?src.woche.filter(e=>e&&e.d>k&&e.d<=iso(addD(parse(k),7))).sort((a,c)=>(a.d+(a.z||'')).localeCompare(c.d+(c.z||''))):[];
+  if(wk.length)h+='<div class="evday">Nächste 7 Tage</div><div>'+wk.map(e=>row(e,true)).join('')+'</div>';
   return h+'</div>';
 }
 
@@ -1526,9 +1519,7 @@ document.addEventListener('focusout',e=>{
 });
 /* ================= Einstellungen ================= */
 function setHTML(){
-  const k=settings.get('kalender')||{};
-  return (window.jamesSettings?jamesSettings():'')+'<section class="card"><h3>Kalender</h3><p class="hint">Optional. Ohne Link kommen deine Termine jeden Morgen mit dem Tagesbericht. Für Termine live und für die nächsten 7 Tage: in Safari calendar.google.com öffnen → links unten auf „aA“ → <b>Desktop-Website anfordern</b> → Zahnrad → Einstellungen → links deinen Kalender → <b>Privatadresse im iCal-Format</b> kopieren und hier einfügen.</p>'
-    +'<input id="icsin" type="url" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" value="'+esc(k.ics||'')+'" autocapitalize="off" autocorrect="off" spellcheck="false"><div class="row"><button class="pri" data-s="ics">Speichern</button>'+(k.ics?'<button class="danger" data-s="icsdel">Entfernen</button>':'')+'</div></section>'
+  return (window.jamesSettings?jamesSettings():'')
     +'<section class="card"><h3>Daten</h3><p class="hint">Alles liegt auf deinem eigenen Server und ist zusätzlich auf diesem Gerät gespeichert. '+esc($('#sync').textContent)+'</p><div class="row"><button data-s="sync">Jetzt synchronisieren</button><button data-s="export">Sicherung herunterladen</button></div></section>'
     +'<section class="card"><h3>Gerät</h3><p class="hint">Auf dem iPhone oder iPad: In Safari auf „Teilen“ → „Zum Home-Bildschirm“, dann startet James wie eine App.</p><div class="row"><button class="danger" data-s="logout">Auf diesem Gerät abmelden</button></div></section>';
 }
