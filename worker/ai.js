@@ -1,9 +1,5 @@
-// James – der KI-Teil: Chat, Karriere-Neuberechnung, Morgen-Briefing.
-// Der Anthropic-API-Schlüssel liegt nur in der Tabelle `secrets` und verlässt den Server nie.
+// James – Kontext für den Claude-Connector, Morgen-Briefing (ohne KI, kostenlos) und Ortssuche.
 
-import Anthropic from '@anthropic-ai/sdk';
-
-const MODEL = 'claude-opus-5-5';
 const TZ = 'Europe/Zurich';
 const WDL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 const MON = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
@@ -41,61 +37,6 @@ async function put(env, c, id, d) {
   const u = Math.max(Date.now(), (row && row.m ? row.m : 0) + 1);
   await env.DB.prepare('INSERT INTO docs (c,id,d,u) VALUES (?1,?2,?3,?4) ON CONFLICT(c,id) DO UPDATE SET d=?3,u=?4')
     .bind(c, id, JSON.stringify(d), u).run();
-}
-
-/* ---------- Schlüssel ---------- */
-export async function getKey(env) {
-  const r = await env.DB.prepare('SELECT v FROM secrets WHERE k=?1').bind('anthropic').first();
-  return r ? r.v : env.ANTHROPIC_API_KEY || '';
-}
-export async function setKey(env, v) {
-  if (!v) { await env.DB.prepare('DELETE FROM secrets WHERE k=?1').bind('anthropic').run(); return { ok: true }; }
-  const client = new Anthropic({ apiKey: v });
-  try {
-    await client.models.retrieve(MODEL);
-  } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) return { ok: false, error: 'Der Schlüssel wird von Anthropic abgelehnt.' };
-    if (e instanceof Anthropic.PermissionDeniedError) return { ok: false, error: 'Der Schlüssel hat keinen Zugriff auf das Modell.' };
-    if (!(e instanceof Anthropic.NotFoundError)) return { ok: false, error: 'Anthropic war nicht erreichbar. Versuch es gleich noch einmal.' };
-  }
-  await env.DB.prepare('INSERT INTO secrets (k,v) VALUES (?1,?2) ON CONFLICT(k) DO UPDATE SET v=?2').bind('anthropic', v).run();
-  return { ok: true };
-}
-async function client(env) {
-  const key = await getKey(env);
-  if (!key) throw Object.assign(new Error('Kein API-Schlüssel hinterlegt.'), { code: 'no_key' });
-  return new Anthropic({ apiKey: key, maxRetries: 2 });
-}
-
-// Eine Anfrage an Claude; setzt pausierte Server-Tool-Runden fort und gibt den Text zurück.
-async function ask(env, { system, messages, effort = 'medium', tools, format, maxTokens = 8000 }) {
-  const c = await client(env);
-  let msgs = messages.slice();
-  for (let i = 0; i < 4; i++) {
-    const params = {
-      model: MODEL,
-      max_tokens: maxTokens,
-      system,
-      messages: msgs,
-      output_config: format ? { effort, format } : { effort },
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-    };
-    if (tools) params.tools = tools;
-    let r;
-    try {
-      r = await c.beta.messages.create(params);
-    } catch (e) {
-      if (e instanceof Anthropic.AuthenticationError) throw Object.assign(new Error('Der API-Schlüssel ist ungültig.'), { code: 'no_key' });
-      if (e instanceof Anthropic.RateLimitError) throw Object.assign(new Error('Zu viele Anfragen. Versuch es in einer Minute noch einmal.'), { code: 'busy' });
-      if (e instanceof Anthropic.APIError) throw Object.assign(new Error('Claude meldet einen Fehler (' + e.status + ').'), { code: 'ai_error' });
-      throw e;
-    }
-    if (r.stop_reason === 'pause_turn') { msgs = [...msgs, { role: 'assistant', content: r.content }]; continue; }
-    if (r.stop_reason === 'refusal') throw Object.assign(new Error('Dazu kann ich leider nichts sagen.'), { code: 'refusal' });
-    return r.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
-  }
-  throw Object.assign(new Error('Die Antwort hat zu lange gedauert.'), { code: 'ai_error' });
 }
 
 /* ---------- Kontext aus der App ---------- */
@@ -170,125 +111,6 @@ export async function lifeContext(env, scope) {
   return lines.join('\n');
 }
 
-/* ---------- Chat ---------- */
-const PERSONA = `Du bist James, der persönliche Assistent von David. Du kennst sein Leben aus seiner App (Daten unten).
-Sprich Deutsch, per du, knapp, klar und ehrlich – nicht bestätigend, sondern kritisch, wo es hilft. Keine langen Einleitungen.
-Antworte in kurzen Absätzen oder knappen Listen, ohne Tabellen. Gebetstexte sind privat und kommen nie vor.
-Du hast keinen Zugriff auf Mails, Kalender oder Konten außer dem, was unten steht. Wenn etwas fehlt, sag es.`;
-
-const SCOPES = {
-  james: 'Du hilfst beim Planen von Alltag, Training, Lernen, Gewohnheiten und Prioritäten.',
-  reise: `Du bist Davids Reiseberater. Er lebt in Basel. Schlage konkrete nächste Reiseziele vor, passend zu seinem Budget und seiner Zeit,
-mit groben Kosten in CHF (Anreise ab Basel/Zürich, Unterkunft, Tagesbudget), bester Reisezeit und warum es zu ihm passt.
-Berücksichtige, wo er schon war (nicht noch einmal dorthin, außer es passt) und seine Wunschziele. Nutze die Websuche für aktuelle Preise und Reisezeiten, wenn nötig.`,
-  karriere: `Du bist Davids Karriere-Mentor. Er will über den Vertrieb bei Roche (Pharma oder Diagnostics) bis zum CEO. Antworte konkret und realistisch,
-mit Rollen, Ländern, typischen Verweildauern und dem, was er jetzt tun kann.`,
-};
-
-export async function chat(env, scope, messages) {
-  scope = SCOPES[scope] ? scope : 'james';
-  const ctx = await lifeContext(env, scope);
-  const clean = messages
-    .filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
-    .slice(-20)
-    .map((m) => ({ role: m.role, content: m.content.slice(0, 6000) }));
-  while (clean.length && clean[0].role !== 'user') clean.shift();
-  if (!clean.length) throw Object.assign(new Error('Leere Frage.'), { code: 'invalid_argument' });
-  const system = [
-    { type: 'text', text: PERSONA + '\n\n' + SCOPES[scope] },
-    { type: 'text', text: 'Davids Daten:\n' + ctx },
-  ];
-  return ask(env, {
-    system, messages: clean, effort: scope === 'james' ? 'low' : 'medium',
-    tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: scope === 'reise' ? 4 : 2, user_location: { type: 'approximate', city: 'Basel', country: 'CH', timezone: TZ } }],
-  });
-}
-
-/* ---------- Karriere-Neuberechnung ---------- */
-const PLAN_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['zusammenfassung', 'stationen', 'risiken', 'jetzt_tun'],
-  properties: {
-    zusammenfassung: { type: 'string' },
-    stationen: {
-      type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['titel', 'firma', 'land', 'flagge', 'ab_jahr', 'dauer', 'stufe', 'warum', 'fokus', 'alternativen'],
-        properties: {
-          titel: { type: 'string' },
-          firma: { type: 'string' },
-          land: { type: 'string' },
-          flagge: { type: 'string' },
-          ab_jahr: { type: 'integer' },
-          dauer: { type: 'string' },
-          stufe: { type: 'string' },
-          warum: { type: 'string' },
-          fokus: { type: 'array', items: { type: 'string' } },
-          alternativen: {
-            type: 'array',
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              required: ['titel', 'firma', 'land', 'flagge', 'warum'],
-              properties: { titel: { type: 'string' }, firma: { type: 'string' }, land: { type: 'string' }, flagge: { type: 'string' }, warum: { type: 'string' } },
-            },
-          },
-        },
-      },
-    },
-    risiken: { type: 'array', items: { type: 'string' } },
-    jetzt_tun: { type: 'array', items: { type: 'string' } },
-  },
-};
-
-export async function replanCareer(env) {
-  const k = (await one(env, 'settings', 'karriere')) || {};
-  const year = Number(todayLocal().slice(0, 4));
-  const a = k.aktuell || {};
-  const brief = [
-    `Heute: ${todayLocal()}.`,
-    `Endziel: ${k.ziel || 'CEO von Roche'}${k.zieljahr ? ' bis ' + k.zieljahr : ''}.`,
-    `Aktuelle Station: ${[a.rolle, a.firma, a.land].filter(Boolean).join(', ') || 'unbekannt'}${a.seit ? ', seit ' + a.seit : ''}.`,
-    `Bisherige Stationen: ${(k.historie || []).map((h) => [h.rolle, h.firma, h.land, h.von && h.bis ? h.von + '–' + h.bis : ''].filter(Boolean).join(', ')).join(' | ') || 'keine'}.`,
-    `Ausbildung: ${k.ausbildung || 'Bachelor, MBA später berufsbegleitend geplant'}.`,
-    `Sprachen: ${k.sprachen || 'Deutsch, Englisch, Spanisch im Aufbau'}.`,
-    `Stärken und Skills: ${(k.skills || []).join(', ') || '–'}.`,
-    `Vorbilder: ${(k.vorbilder || []).join('; ') || '–'}.`,
-    `Bevorzugte Länder oder Regionen: ${(k.laender || []).join(', ') || 'offen'}.`,
-    `Wünsche und Grenzen: ${k.wuensche || '–'}.`,
-    k.fix && k.fix.length ? `Fest gewählte nächste Schritte (unbedingt so übernehmen, in dieser Reihenfolge, direkt nach der aktuellen Station): ${k.fix.map((f) => f.titel + ' – ' + f.firma + ' – ' + f.land).join(' → ')}.` : '',
-  ].filter(Boolean).join('\n');
-
-  const system = `Du bist ein erfahrener Executive-Karriereberater für die Pharma- und Diagnostikbranche mit genauer Kenntnis der Karrierewege bei Roche
-(Roche Pharma und Roche Diagnostics, Affiliates, Regionen, globale Funktionen in Basel und South San Francisco) und typischer Wege bisheriger Roche-Führungskräfte.
-Plane den realistischsten Weg von der aktuellen Station bis zum Endziel. Wichtig:
-- Realistisch viele Zwischenstationen (meist 8–12 bis CEO), je 2–3 Jahre, mit echten Rollentiteln, wie Roche sie verwendet (z. B. Key Account Manager, Product Manager, Brand Manager, Customer Partner Lead, Commercial Lead, Head of Marketing, Business Unit Head, Country Manager/General Manager kleines Land, General Manager großes Land, Head of Region, Global Function Head, Division CEO, Group CEO).
-- Wechsel zwischen Pharma und Diagnostics, Land und global, Linie und Strategie gezielt einsetzen, mit sinnvollen Ländern (Affiliates mit Entwicklungschancen, Lateinamerika, Asien, Nordics usw.).
-- Fester Startpunkt ist die aktuelle Station; die erste Station im Plan ist die NÄCHSTE nach der aktuellen.
-- Pro Station 1–2 realistische Alternativen.
-- „stufe“: kurze Einordnung wie „Einstieg“, „Erste Führung“, „Ländermanagement“, „Regional“, „Global“, „Konzernleitung“.
-- „flagge“: das Flaggen-Emoji des Landes (bei globalen Rollen das des Standorts).
-- „ab_jahr“: Startjahr als Zahl, beginnend frühestens ${year}.
-- „jetzt_tun“: 3–5 konkrete Schritte für die nächsten 6 Monate.
-- Ehrlich: nenne Risiken (z. B. Bachelor ohne MBA, Mobilität, Konkurrenz).
-Sprache: Deutsch.`;
-  const text = await ask(env, {
-    system, messages: [{ role: 'user', content: brief }], effort: 'high', maxTokens: 16000,
-    format: { type: 'json_schema', schema: PLAN_SCHEMA },
-  });
-  const plan = JSON.parse(text);
-  plan.erstellt = new Date().toISOString();
-  plan.basis = [a.rolle, a.firma, a.land].filter(Boolean).join(', ');
-  const cur = (await one(env, 'settings', 'karriere')) || {};
-  cur.plan = plan;
-  cur.fix = [];
-  await put(env, 'settings', 'karriere', cur);
-  return plan;
-}
-
 /* ---------- Morgen-Briefing ---------- */
 const WMO = (c) => (c === 0 ? 'klar' : c <= 2 ? 'leicht bewölkt' : c === 3 ? 'bedeckt' : c <= 48 ? 'neblig' : c <= 57 ? 'Nieselregen' : c <= 67 ? 'Regen' : c <= 77 ? 'Schnee' : c <= 82 ? 'Regenschauer' : c <= 86 ? 'Schneeschauer' : 'Gewitter');
 
@@ -305,12 +127,14 @@ async function weather(P) {
   }
 }
 
-export async function briefing(env, { useAi = true, fresh = false, events = null } = {}) {
+export async function briefing(env, { fresh = false, events = null } = {}) {
   const t = todayLocal();
   const id = 'james-' + t;
+  const rep = await one(env, 'reports', 'tag-' + t);
   if (!fresh) {
     const cached = await one(env, 'reports', id);
-    if (cached && cached.text && (cached.ai || !useAi || !(await getKey(env)))) return cached;
+    const stale = rep && rep.at && cached && cached.at && Date.parse(rep.at) > Date.parse(cached.at);
+    if (cached && cached.text && !stale) return cached;
   }
   const P = await profile(env);
   const [todos, sessions, days] = await Promise.all(['todos', 'sessions', 'days'].map((c) => all(env, c)));
@@ -338,24 +162,18 @@ export async function briefing(env, { useAi = true, fresh = false, events = null
   let g = 0, n = 0;
   for (let k = mon; k < t; k = addD(k, 1)) { n++; if (dmap[k] && dmap[k].h && dmap[k].h.gebet) g++; }
   if (n) S.push(`Gebetet an ${g} von ${n} Tagen dieser Woche.`);
-  const rep = await one(env, 'reports', 'tag-' + t);
-  if (rep && rep.losung && rep.losung.text) S.push('Die Losung für heute: ' + rep.losung.text + (rep.losung.ref ? ' – ' + rep.losung.ref + '.' : ''));
-  S.push('Ich wünsch dir einen guten Tag.');
-  let text = S.join(' ');
-  let ai = false;
-
-  if (useAi && (await getKey(env))) {
-    try {
-      const ctx = await lifeContext(env, 'james');
-      text = await ask(env, {
-        system: [{ type: 'text', text: PERSONA }, { type: 'text', text: 'Davids Daten:\n' + ctx }],
-        messages: [{ role: 'user', content: 'Formuliere aus diesen Fakten mein gesprochenes Morgen-Briefing, wie ein persönlicher Butler: warm, ruhig, auf den Punkt, höchstens 110 Wörter, ganze Sätze ohne Listen, Aufzählungszeichen oder Emojis (es wird vorgelesen). Nenne nur, was heute wirklich zählt. Steht eine Losung in den Fakten, gib sie wörtlich mit Bibelstelle wieder. Schließe mit einem kurzen, konkreten Impuls für den Tag.\n\nFakten:\n' + S.join('\n') }],
-        effort: 'low', maxTokens: 2000,
-      });
-      ai = true;
-    } catch (e) { /* bei Fehlern bleibt die einfache Fassung */ }
+  const dp = rep && rep.depot;
+  if (dp && isFinite(dp.wert)) {
+    const f = (v) => Math.round(Math.abs(v)).toLocaleString('de-DE');
+    let l = `Dein Depot steht bei ${f(dp.wert)} ${dp.cur === 'EUR' ? 'Euro' : 'Franken'}`;
+    if (isFinite(dp.diff) && dp.diff !== 0) l += `, ${dp.diff > 0 ? 'plus' : 'minus'} ${f(dp.diff)}` + (isFinite(dp.pct) ? ` oder ${String(Math.abs(Math.round(dp.pct * 10) / 10)).replace('.', ',')} Prozent` : '') + ' seit gestern';
+    S.push(l + '.');
   }
-  const doc = { type: 'james', d: t, text, ai, wetter: W, at: new Date().toISOString() };
+  if (rep && rep.losung && rep.losung.text) S.push('Die Losung für heute: ' + rep.losung.text + (rep.losung.ref ? ' – ' + rep.losung.ref + '.' : ''));
+  if (rep && rep.impuls) S.push(rep.impuls);
+  S.push('Ich wünsch dir einen guten Tag.');
+  const text = S.join(' ');
+  const doc = { type: 'james', d: t, text, wetter: W, at: new Date().toISOString() };
   await put(env, 'reports', id, doc);
   return doc;
 }

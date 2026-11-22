@@ -5,7 +5,7 @@
 import { calendarEvents } from './ical.js';
 import { serveStatic } from './static.js';
 import { mcp } from './mcp.js';
-import { chat, replanCareer, briefing, geocode, reverseGeocode, getKey, setKey, todayLocal } from './ai.js';
+import { briefing, geocode, reverseGeocode, todayLocal } from './ai.js';
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -150,33 +150,10 @@ async function api(req, env, url) {
     }
   }
 
-  // ---------- James / KI ----------
-  if (p === '/api/ai/status' && req.method === 'GET') return json({ ai: !!(await getKey(env)) });
-
-  if (p === '/api/ai/key' && req.method === 'POST') {
-    const b = await req.json().catch(() => null);
-    const v = b && typeof b.key === 'string' ? b.key.trim() : '';
-    if (v && !/^sk-ant-[A-Za-z0-9_\-]{20,}$/.test(v)) return json({ ok: false, error: 'Das sieht nicht wie ein Anthropic-Schlüssel aus (beginnt mit sk-ant-).' }, 400);
-    const r = await setKey(env, v);
-    return json(r, r.ok ? 200 : 400);
-  }
-
-  if (p === '/api/ai/chat' && req.method === 'POST') {
-    const b = await req.json().catch(() => null);
-    if (!b || !Array.isArray(b.messages)) return json({ error: 'invalid_argument' }, 400);
-    try { return json({ text: await chat(env, b.scope, b.messages) }); }
-    catch (e) { return json({ error: e.code || 'ai_error', message: e.message }, e.code === 'no_key' ? 412 : 502); }
-  }
-
-  if (p === '/api/ai/karriere' && req.method === 'POST') {
-    try { return json({ plan: await replanCareer(env) }); }
-    catch (e) { return json({ error: e.code || 'ai_error', message: e.message }, e.code === 'no_key' ? 412 : 502); }
-  }
-
   // Morgen-Briefing. format=text liefert reinen Text (für den Kurzbefehl zum Vorlesen).
   if (p === '/api/briefing' && req.method === 'GET') {
     const events = await todaysEvents(env);
-    const doc = await briefing(env, { useAi: url.searchParams.get('ai') !== '0', fresh: url.searchParams.get('fresh') === '1', events });
+    const doc = await briefing(env, { fresh: url.searchParams.get('fresh') === '1', events });
     if (url.searchParams.get('format') === 'text') return new Response(doc.text, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
     return json(doc);
   }
@@ -267,7 +244,7 @@ async function todaysEvents(env) {
 export default {
   // Jeden Morgen um 5:15 Uhr (UTC) das Briefing vorbereiten, damit es beim Wecken sofort da ist.
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(todaysEvents(env).then((events) => briefing(env, { useAi: true, fresh: true, events })).catch(() => {}));
+    ctx.waitUntil(todaysEvents(env).then((events) => briefing(env, { fresh: true, events })).catch(() => {}));
     ctx.waitUntil(prepareRadio(env).catch(() => {}));
   },
   async fetch(req, env) {

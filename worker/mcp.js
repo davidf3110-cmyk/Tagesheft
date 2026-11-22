@@ -16,7 +16,7 @@ Daten liegen als Dokumente in Sammlungen. Wichtigste Felder:
 - shop/<id>: Einkaufsliste {t, done, at}
 - orte/<id>: {n, region, land, cc, lat, lon, war (true = schon bereist), prio, besucht}
 - jobs/<id>: gemerkte Stellen {pos, firma, ort, pass, link, found, frist, note, st}
-- reports/<id>: Berichte. tag-<Datum> = Tagesbericht {type: "tag", d, title, at, text: "", notes: [..], mails: [{w, b, a}], wetter: {t, lo, hi, ort}, losung: {text, ref, lehr, lehrRef} (Herrnhuter Losung und Lehrtext des Tages, wörtlich)}; woche-<Montag> = Wochenplan {type: "woche", week, d, title, text (Markdown), at}; monat-<JJJJ-MM> = Monats-Check; james-<Datum> = Morgen-Briefing.
+- reports/<id>: Berichte. tag-<Datum> = Tagesbericht {type: "tag", d, title, at, text: "", notes: [..], mails: [{w, b, a}], wetter: {t, lo, hi, ort}, losung: {text, ref, lehr, lehrRef} (Herrnhuter Losung und Lehrtext des Tages, wörtlich)}; woche-<Montag> = Wochenplan {type: "woche", week, d, title, text (Markdown), at}; monat-<JJJJ-MM> = Monats-Check; james-<Datum> = Morgen-Briefing (baut der Server selbst aus dem Tagesbericht). Im Tagesbericht außerdem depot: {wert, cur, diff, pct, at} (Depotwert IBKR) und impuls (ein Satz für den Tag) – beides wird im Morgen-Briefing vorgelesen.
 - settings/<id>: regeln {text} (Plan & Regeln, zuerst lesen), karriere (Ziel, aktuelle Station, Plan), vorlagen (Gym), lernen, profil, wecker, budget.
 Heute ist ${'${TODAY}'} (Europe/Zurich). Änderungen erscheinen sofort auf Davids iPhone und iPad.`;
 
@@ -26,6 +26,7 @@ const TOOLS = [
   { name: 'james_get', description: 'Ein Dokument lesen.', inputSchema: { type: 'object', properties: { collection: { type: 'string', enum: COLLECTIONS }, id: { type: 'string' } }, required: ['collection', 'id'], additionalProperties: false } },
   { name: 'james_set', description: 'Ein Dokument anlegen oder vollständig ersetzen.', inputSchema: { type: 'object', properties: { collection: { type: 'string', enum: COLLECTIONS }, id: { type: 'string' }, data: { type: 'object' } }, required: ['collection', 'id', 'data'], additionalProperties: false } },
   { name: 'james_update', description: 'Felder eines Dokuments ändern (oberste Ebene wird zusammengeführt; ein Feld mit dem Wert null wird entfernt). Legt das Dokument an, falls es fehlt.', inputSchema: { type: 'object', properties: { collection: { type: 'string', enum: COLLECTIONS }, id: { type: 'string' }, data: { type: 'object' } }, required: ['collection', 'id', 'data'], additionalProperties: false } },
+  { name: 'james_export', description: 'Kompakte Sicherung aller Daten als JSON-Text (für die wöchentliche Sicherung nach Google Drive). Tagesdaten, Berichte und erledigte To-dos der letzten <days> Tage, alles andere vollständig. Gebetstexte sind enthalten – nur für die Sicherung verwenden.', inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 7, maximum: 400, description: 'Fenster in Tagen, Standard 35' } }, additionalProperties: false } },
   { name: 'james_delete', description: 'Ein Dokument löschen. Nur auf ausdrücklichen Wunsch von David.', inputSchema: { type: 'object', properties: { collection: { type: 'string', enum: COLLECTIONS }, id: { type: 'string' } }, required: ['collection', 'id'], additionalProperties: false } },
 ];
 
@@ -73,6 +74,24 @@ async function callTool(env, name, a) {
     for (const [k, v] of Object.entries(a.data)) { if (v === null) delete cur[k]; else cur[k] = v; }
     await write(env, a.collection, a.id, cur);
     return JSON.stringify({ ok: true, id: a.id, data: cur });
+  }
+  if (name === 'james_export') {
+    const days = Math.max(7, Math.min(400, Number(a.days) || 35));
+    const t = todayLocal(), d0 = new Date(Date.parse(t + 'T00:00:00Z') - days * 864e5).toISOString().slice(0, 10);
+    const { results } = await env.DB.prepare('SELECT c, id, d FROM docs WHERE d IS NOT NULL').all();
+    const out = {};
+    for (const r of results) {
+      const x = JSON.parse(r.d);
+      let keep = true;
+      if (['days', 'sessions', 'food'].includes(r.c)) keep = r.id >= d0;
+      else if (r.c === 'prayers') keep = (x.date || '') >= d0 || (x.changed || '') >= d0;
+      else if (r.c === 'todos') keep = x.st !== 'done' || (x.done || '') >= d0 || String(x.created || '').slice(0, 10) >= d0;
+      else if (r.c === 'reports') { const m = r.id.match(/\d{4}-\d{2}(-\d{2})?/); keep = !m || m[0] >= d0.slice(0, m[0].length); }
+      else if (r.c === 'chats') keep = false;
+      if (keep) (out[r.c] = out[r.c] || {})[r.id] = x;
+    }
+    return JSON.stringify({ app: 'James', url: 'https://tagesheft.davidf3110.workers.dev', stand: new Date().toISOString(), fenster: days + ' Tage',
+      hinweis: 'Wöchentliche Sicherung. Tagesdaten, Berichte und erledigte To-dos der letzten ' + days + ' Tage, alles andere vollständig. Zum Wiederherstellen die Dateien von alt nach neu einspielen.', daten: out });
   }
   if (name === 'james_delete') { check(a, true); await write(env, a.collection, a.id, null); return JSON.stringify({ ok: true }); }
   throw new Error('Unbekanntes Werkzeug: ' + name);

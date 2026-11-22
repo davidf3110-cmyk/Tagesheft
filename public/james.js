@@ -9,13 +9,9 @@ const J = { ai: null, briefBusy: false, speaking: false, chat: null, chatBusy: f
 
 function jamesInit() {
   if (matchMedia('(min-width:1100px)').matches) setTimeout(() => menuOpen(true), 0);
-  chats = mkStore('chats'); orte = mkStore('orte');
-  ALL.push(chats, orte);
+  orte = mkStore('orte');
+  ALL.push(orte);
   try { const t = localStorage.getItem('james-welt'); if (t === 'liste' || t === 'globus') J.w.tab = t; } catch (e) {}
-  setTimeout(async () => {
-    try { J.ai = (await TH.call('/ai/status')).ai; } catch (e) { J.ai = null; }
-    softRender();
-  }, 300);
 }
 const jProfil = () => settings.get('profil') || {};
 const jName = () => jProfil().name || 'David';
@@ -34,7 +30,7 @@ function jamesCard() {
     + (J.briefBusy ? 'Stellt dein Briefing zusammen …' : b ? 'Briefing · ' + pad(at.getHours()) + ':' + pad(at.getMinutes()) + ' Uhr' : 'Dein persönlicher Assistent') + '</small></div></div>'
     + '<p>' + (b ? esc(b.text) : 'Ich fasse dir deinen Tag zusammen: Wetter, Termine, To-dos, Training und was heute zählt. Frag mich auch einfach etwas.') + '</p>'
     + '<div class="row"><button class="gold" data-j="brief">' + (b ? (J.speaking ? '■ Stopp' : '▶ Vorlesen') : 'Briefing holen') + '</button>'
-    + (b ? '<button data-j="briefnew">Neu erstellen</button>' : '') + '<button data-j="chat" data-v="james">Gespräch</button></div>'
+    + (b ? '<button data-j="briefnew">Neu erstellen</button>' : '') + '<button data-j="chat" data-v="james">In Claude fragen</button></div>'
     + '<form class="ask" id="jask" autocomplete="off"><input id="jaskin" placeholder="Frag James …" aria-label="Frag James" enterkeyhint="send"><button type="submit" aria-label="Senden">↑</button></form></section>';
 }
 async function jBriefing(fresh) {
@@ -56,75 +52,20 @@ function jSpeak(text) {
   speechSynthesis.speak(u);
 }
 
-/* ---------- Chat ---------- */
-const SUGG = {
-  james: ['Was ist heute am wichtigsten?', 'Wie lief mein Training die letzten Wochen?', 'Plane mir die Woche', 'Was sollte ich einkaufen für gesundes Essen?'],
-  reise: ['Wohin als Nächstes – 5 Tage, 1500 CHF?', 'Ein Wochenende ab Basel im Dezember', 'Was passt im Frühling aus meiner Wunschliste?'],
-  karriere: ['Was soll ich in den nächsten 6 Monaten tun?', 'Brauche ich einen MBA – und wann?', 'Welche Länder sind für Roche-Karrieren gut?'],
-};
-const SCOPE_T = { james: 'James', reise: 'James · Reisen', karriere: 'James · Karriere' };
-function chatDoc(scope) { return chats.get(scope) || { m: [] }; }
+/* ---------- Gespräche: in der Claude-App, mit dem James-Connector ---------- */
+const CLAUDE_HINT = ' (Nutze den James-Connector für meine Daten.)';
 function openClaude(scope, ask) {
-  const pre = { james: 'James', reise: 'James · Reise', karriere: 'James · Karriere' }[scope] || 'James';
-  const q = pre + ': ' + (ask || (scope === 'reise' ? 'Wohin soll ich als Nächstes reisen? Nutze den James-Connector für meine Orte.' : scope === 'karriere' ? 'Schau dir meinen Karriereplan im James-Connector an und hilf mir weiter.' : 'Schau in James nach, was heute bei mir ansteht.'));
+  const def = { james: 'Schau in James nach, was heute bei mir ansteht, und hilf mir, den Tag zu planen.', reise: 'Wohin soll ich als Nächstes reisen? Schau dir meine Orte in James an.', karriere: 'Schau dir meinen Karriereplan in James an und hilf mir weiter.' };
+  const q = 'James: ' + (ask || def[scope] || def.james) + CLAUDE_HINT;
   window.open('https://claude.ai/new?q=' + encodeURIComponent(q), '_blank');
 }
-function openChat(scope, ask) {
-  if (J.ai === false) return openClaude(scope, ask);
-  J.chat = scope;
-  let el = document.getElementById('chat');
-  if (!el) { el = document.createElement('div'); el.id = 'chat'; document.body.appendChild(el); }
-  document.body.classList.add('lock');
-  renderChat();
-  if (ask) sendChat(ask); else setTimeout(() => { const i = document.getElementById('chin'); if (i) i.focus(); }, 80);
-}
-function closeChat() { J.chat = null; const el = document.getElementById('chat'); if (el) el.remove(); document.body.classList.remove('lock'); softRender(); }
-function renderChat() {
-  const el = document.getElementById('chat'); if (!el || !J.chat) return;
-  const s = J.chat, m = chatDoc(s).m || [];
-  const keep = document.getElementById('chin'), draft = keep ? keep.value : '';
-  let h = '<div class="ch-head"><span class="orb' + (J.chatBusy ? ' busy' : '') + '"></span><b>' + SCOPE_T[s] + '</b>'
-    + (m.length ? '<button data-j="chatclear">Neu</button>' : '') + '<button data-j="chatclose">Fertig</button></div><div class="ch-body" id="chbody">';
-  if (!m.length) h += '<div class="msg-a">' + (s === 'reise' ? 'Wohin soll es gehen? Sag mir Budget, Zeitraum und worauf du Lust hast – ich kenne deine Liste.' : s === 'karriere' ? 'Woran arbeitest du gerade beruflich? Ich kenne deinen Plan und deine Ziele.' : 'Ich bin da. Was kann ich für dich tun?') + '</div><div class="ch-sugg">' + SUGG[s].map((q) => '<button data-j="sugg" data-v="' + esc(q) + '">' + esc(q) + '</button>').join('') + '</div>';
-  m.forEach((x) => { h += x.role === 'user' ? '<div class="msg-u">' + esc(x.content) + '</div>' : '<div class="msg-a' + (x.err ? ' err' : '') + '">' + jMd(x.content) + '</div>'; });
-  if (J.chatBusy) h += '<div class="msg-a"><span class="typing"><i></i><i></i><i></i></span></div>';
-  h += '</div><div class="ch-foot"><form id="chform" autocomplete="off"><input id="chin" placeholder="Nachricht an James" value="' + esc(draft) + '" enterkeyhint="send" aria-label="Nachricht"><button type="submit" aria-label="Senden"' + (J.chatBusy ? ' disabled' : '') + '>↑</button></form></div>';
-  el.innerHTML = h;
-  const b = document.getElementById('chbody'); if (b) b.scrollTop = b.scrollHeight;
-}
-async function sendChat(text) {
-  const s = J.chat; text = String(text || '').trim();
-  if (!s || !text || J.chatBusy) return;
-  const x = chats.edit(s); x.m = x.m || [];
-  x.m.push({ role: 'user', content: text, at: new Date().toISOString() });
-  if (x.m.length > 60) x.m = x.m.slice(-60);
-  chats.touch(s, 0);
-  J.chatBusy = true;
-  const inp = document.getElementById('chin'); if (inp) inp.value = '';
-  renderChat();
-  let reply = '', err = false;
-  try {
-    const r = await TH.call('/ai/chat', { method: 'POST', body: JSON.stringify({ scope: s, messages: x.m.filter((q) => !q.err).map((q) => ({ role: q.role, content: q.content })) }) });
-    reply = r.text || '…';
-  } catch (e) {
-    err = true;
-    reply = e.code === 'no_key' ? 'Mir fehlt noch dein Claude-API-Schlüssel. Tippe auf der Startseite oben rechts aufs Zahnrad und trag ihn unter „James“ ein.' : e.message || 'Ich bin gerade nicht erreichbar. Versuch es gleich noch einmal.';
-  }
-  const y = chats.edit(s); y.m = y.m || [];
-  y.m.push({ role: 'assistant', content: reply, at: new Date().toISOString(), err });
-  chats.touch(s, 0);
-  J.chatBusy = false;
-  renderChat();
-}
+const openChat = openClaude;
 
 /* ---------- Einstellungen: James ---------- */
 function jamesSettings() {
-  return themeSettings() + '<section class="card"><h3>James</h3><p class="hint">' + (J.ai ? '✓ Verbunden mit Claude. James beantwortet Fragen, plant deine Karriere und formuliert das Briefing.' : 'Für Gespräche, Karriereplanung und das formulierte Briefing braucht James einen Claude-API-Schlüssel. Den bekommst du auf console.anthropic.com → API Keys (geht auch am iPhone). Das einfache Briefing funktioniert auch ohne.') + '</p>'
-    + '<input id="aikey" type="password" autocomplete="off" placeholder="' + (J.ai ? 'Neuen Schlüssel eintragen (sk-ant-…)' : 'sk-ant-…') + '" aria-label="Claude-API-Schlüssel"><div class="row"><button class="pri" data-j="aikey">Speichern</button>' + (J.ai ? '<button class="danger" data-j="aikeydel">Entfernen</button>' : '') + '</div>'
-    + '</section><section class="card"><h3>Claude-Connector</h3><p class="hint">Damit Claude in der Claude-App und in geplanten Aufgaben direkt mit James arbeitet – über dein Abo, ohne API-Kosten. In Claude: Einstellungen → Connectors → Eigenen Connector hinzufügen → Name „James“, diese Adresse einfügen. Die Adresse ist geheim wie ein Passwort.</p>'
+  return themeSettings() + '<section class="card"><h3>Claude-Connector</h3><p class="hint">Damit Claude in der Claude-App und in geplanten Aufgaben direkt mit James arbeitet – über dein Abo, ohne Zusatzkosten. In Claude: Einstellungen → Connectors → Eigenen Connector hinzufügen → Name „James“, diese Adresse einfügen. Die Adresse ist geheim wie ein Passwort.</p>'
     + (J.mcpUrl ? '<code class="wrap mcpurl">' + esc(J.mcpUrl) + '</code><div class="row"><button data-j="copy" data-v="' + esc(J.mcpUrl) + '">Kopieren</button></div>' : '<div class="row"><button data-j="mcpshow">Adresse anzeigen</button></div>')
-    + '<label class="f">Dein Name<input id="pname" value="' + esc(jName()) + '"></label></section>'
-    + '<section class="card"><h3>Wecker</h3><p class="hint">Song und James-Briefing zum Aufwachen.</p><div class="row"><button data-j="wecker">Wecker öffnen</button></div></section>';
+    + '<label class="f">Dein Name<input id="pname" value="' + esc(jName()) + '"></label></section>';
 }
 
 /* ============================================================
@@ -401,9 +342,7 @@ function karriereView() {
   const last = pl[pl.length - 1];
   let h = '<section class="kr-hero"><span class="eyebrow">Mein Ziel</span><h2>' + esc(k.ziel || 'Ziel festlegen') + '</h2>'
     + (pl.length ? '<div class="kr-prog"><i style="width:' + Math.round(done / total * 100) + '%"></i></div><div class="split"><span>Station <b>' + done + '</b> von ' + total + '</span><span>' + (last ? 'Ziel ca. <b>' + (last.ab_jahr || '') + '</b>' : '') + '</span></div>' : '')
-    + '<div class="row"><button class="gold" data-j="krplan"' + (J.krBusy ? ' disabled' : '') + '>' + (pl.length ? '↻ Weg neu berechnen' : 'Weg berechnen') + '</button><button data-j="chat" data-v="karriere">Mit James sprechen</button></div></section>';
-  if (J.krBusy) h += '<div class="busyline"><span class="orb busy"></span>James plant deinen Weg neu. Das dauert etwa eine Minute …</div>';
-  if (J.ai === false) h += '<p class="hint">Für die automatische Planung braucht James deinen Claude-API-Schlüssel (Start → Zahnrad).</p>';
+    + '<div class="row"><button class="gold" data-j="krplan">' + (pl.length ? '↻ Weg neu berechnen' : 'Weg berechnen') + '</button><button data-j="chat" data-v="karriere">Mit Claude sprechen</button></div></section>';
   // Pfad
   h += '<div class="path2">';
   hist.forEach((s) => { h += '<div class="st2 done"><span class="node">' + (s.flagge || '✓') + '</span><div class="bx"><span class="meta">' + esc([s.von, s.bis].filter(Boolean).join(' – ')) + '</span><b>' + esc(s.rolle || '') + '</b><span class="co">' + esc([s.firma, s.land].filter(Boolean).join(' · ')) + '</span></div></div>'; });
@@ -454,17 +393,10 @@ function krJobs() {
       + '<div class="chips">' + ['Interessant', 'Beworben', 'Verworfen'].map((st) => '<button data-a="jobst" data-id="' + id + '" data-v="' + st + '" class="' + (j.st === st ? 'on' : '') + '">' + st + '</button>').join('') + '</div></div>';
   }).join('') + '</div></section>';
 }
-async function krReplan() {
-  if (J.krBusy) return;
-  if (J.ai === false) { toast('Erst den Claude-API-Schlüssel eintragen (Start → Zahnrad).'); return; }
-  J.krBusy = true; J.krOpen = -1; render();
-  try {
-    if (Object.prototype.hasOwnProperty.call(settings.pend, 'karriere')) await flush(settings, 'karriere');
-    await TH.call('/ai/karriere', { method: 'POST' });
-    await TH.pull();
-    toast('Neuer Weg berechnet');
-  } catch (e) { toast(e.code === 'no_key' ? 'Der Claude-API-Schlüssel fehlt.' : (e.message || 'Neuberechnung fehlgeschlagen.')); }
-  J.krBusy = false; render();
+const KR_FMT = 'Speichere den neuen Weg mit james_update in settings/karriere als Feld „plan“ im bestehenden Format ({zusammenfassung, stationen: [{titel, firma, land, flagge, ab_jahr, dauer, stufe, warum, fokus, alternativen: [{titel, firma, land, flagge, warum}]}], risiken, jetzt_tun, erstellt, basis}) und setze „fix“ auf [].';
+function krReplan(extra) {
+  if (Object.prototype.hasOwnProperty.call(settings.pend, 'karriere')) flush(settings, 'karriere');
+  openClaude('karriere', 'Berechne meinen Karriereweg neu: Lies settings/karriere in James (Ziel, aktuelle Station, Profil, bisheriger Plan). ' + (extra || '') + 'Gleiche die Stationen mit echten Lebensläufen von Roche-Führungskräften ab. ' + KR_FMT);
 }
 const ym = () => today().slice(0, 7);
 
@@ -475,18 +407,6 @@ document.addEventListener('click', (e) => {
   if (a === 'brief') { const r = reports.get('james-' + today()); return r ? jSpeak(r.text) : jBriefing(false); }
   if (a === 'briefnew') return jBriefing(true);
   if (a === 'chat') return openChat(b.dataset.v);
-  if (a === 'chatclose') return closeChat();
-  if (a === 'chatclear') { chats.put(J.chat, { m: [] }, 0); return renderChat(); }
-  if (a === 'sugg') return sendChat(b.dataset.v);
-  if (a === 'aikey' || a === 'aikeydel') {
-    const v = a === 'aikeydel' ? '' : (document.getElementById('aikey').value || '').trim();
-    if (a === 'aikey' && !v) return;
-    b.disabled = true;
-    TH.call('/ai/key', { method: 'POST', body: JSON.stringify({ key: v }) })
-      .then(() => { J.ai = !!v; toast(v ? 'James ist verbunden' : 'Schlüssel entfernt'); render(); })
-      .catch((err) => { b.disabled = false; toast(err.message || 'Der Schlüssel funktioniert nicht.'); });
-    return;
-  }
   // Welt
   if (a === 'wtab') { J.w.tab = b.dataset.v; J.w.res = []; J.w.open = ''; try { localStorage.setItem('james-welt', J.w.tab); } catch (err) {} return render(); }
   if (a === 'popen') { J.w.open = J.w.open === b.dataset.id ? '' : b.dataset.id; return render(); }
@@ -520,20 +440,19 @@ document.addEventListener('click', (e) => {
     k.aktuell = { rolle: s.titel, firma: s.firma, land: s.land, flagge: s.flagge, seit: ym() };
     k.plan.stationen.shift();
     settings.touch('karriere', 0); render();
-    return krReplan();
+    return krReplan('Ich habe gerade die Station „' + s.titel + '“ erreicht. ');
   }
   if (a === 'kralt') {
     const k = settings.edit('karriere'), s = k.plan.stationen[+b.dataset.i], al = s.alternativen[+b.dataset.k];
     k.fix = [...k.plan.stationen.slice(0, +b.dataset.i).map((x) => ({ titel: x.titel, firma: x.firma, land: x.land })), { titel: al.titel, firma: al.firma, land: al.land }];
     settings.touch('karriere', 0);
-    return krReplan();
+    return krReplan('Ich wähle als nächsten Schritt die Alternative „' + al.titel + ' – ' + al.firma + ' – ' + al.land + '“ (steht in „fix“). ');
   }
   if (a === 'krtagdel') { const k = settings.edit('karriere'); (k[b.dataset.f] || []).splice(+b.dataset.i, 1); settings.touch('karriere', 0); J.krEdit = true; return render(); }
 });
 document.addEventListener('submit', (e) => {
   const id = e.target.id;
   if (id === 'jask') { e.preventDefault(); const v = document.getElementById('jaskin').value.trim(); if (v) openChat('james', v); }
-  if (id === 'chform') { e.preventDefault(); sendChat(document.getElementById('chin').value); }
   if (id === 'wform') { e.preventDefault(); const i = document.getElementById('wq'); if (i) J.w.q = i.value; wSearch(e.target.dataset.war === '1'); }
 });
 document.addEventListener('input', (e) => {
@@ -554,11 +473,9 @@ document.addEventListener('keydown', (e) => {
     const k = settings.edit('karriere'); k[t.dataset.kt] = (k[t.dataset.kt] || []).concat(v); settings.touch('karriere', 0); J.krEdit = true; render();
     const n = document.querySelector('[data-kt="' + t.dataset.kt + '"]'); if (n) n.focus();
   }
-  if (e.key === 'Escape' && J.chat) closeChat();
 });
 document.addEventListener('toggle', (e) => { if (e.target && e.target.id === 'krprof') J.krEdit = e.target.open; }, true);
 // Neue Daten vom Server (z. B. Chat auf einem anderen Gerät) auch im offenen Chat zeigen
-window.addEventListener('th-synced', () => { if (J.chat && !J.chatBusy) renderChat(); });
 
 /* ============================================================
    Darstellung (Dunkel / Hell / System)
@@ -683,7 +600,7 @@ function closeWecker() { setView('heute'); }
 /* ============================================================
    Seitenmenü (aus- und einklappbar)
    ============================================================ */
-const NAV = [['heute', 'James'], ['todos', 'To-dos'], ['training', 'Training'], ['einkauf', 'Einkauf'], ['gebet', 'Gebet'], ['orte', 'Welt'], ['jobs', 'Karriere'], ['-'], ['wecker', 'Wecker'], ['einstellungen', 'Einstellungen']];
+const NAV = [['heute', 'James'], ['wecker', 'Wecker'], ['todos', 'To-dos'], ['training', 'Training'], ['einkauf', 'Einkauf'], ['gebet', 'Gebet'], ['orte', 'Welt'], ['jobs', 'Karriere'], ['einstellungen', 'Einstellungen']];
 const NAVIC = {
   wecker: '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.8M4.5 5.5l3-2.5M19.5 5.5l-3-2.5"/></svg>',
   einstellungen: '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',

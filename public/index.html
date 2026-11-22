@@ -891,6 +891,7 @@ function heuteWoche(){
   });
   h+='</tbody></table></div></section>';
   h+=repCard(reports.get('woche-'+m),'Wochenplan','Der Wochenplan kommt am Sonntag davor um 16:49.','repw');
+  {const mk=reports.ids().filter(x=>x.startsWith('monat-')).sort().pop();if(mk)h+=repCard(reports.get(mk),'Monats-Check',' ','repm')}
   return h;
 }
 
