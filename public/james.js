@@ -24,6 +24,7 @@ const flag = (cc) => (cc && cc.length === 2 ? String.fromCodePoint(...[...cc.toU
 
 /* ---------- Startkarte ---------- */
 function jamesCard() {
+  stLoad();
   const b = reports.get('james-' + today());
   const at = b && b.at ? new Date(b.at) : null;
   return '<section class="jc"><div class="jc-top"><span class="orb' + (J.briefBusy || J.speaking ? ' busy' : '') + '"></span><div><b>James</b><small>'
@@ -41,14 +42,14 @@ async function jBriefing(fresh) {
 }
 function jSpeak(text) {
   if (!('speechSynthesis' in window)) { toast('Vorlesen geht auf diesem Gerät nicht.'); return; }
-  if (J.speaking) { speechSynthesis.cancel(); J.speaking = false; softRender(); if (typeof refreshWecker === 'function') refreshWecker(); return; }
+  if (J.speaking) { speechSynthesis.cancel(); J.speaking = false; softRender();  return; }
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'de-DE'; u.rate = 1;
   const vs = speechSynthesis.getVoices().filter((v) => /^de/i.test(v.lang));
   const pick = vs.find((v) => /premium|enhanced|anna|markus|yannick|helena/i.test(v.name)) || vs[0];
   if (pick) u.voice = pick;
-  u.onend = u.onerror = () => { J.speaking = false; softRender(); if (typeof refreshWecker === 'function') refreshWecker(); };
-  J.speaking = true; softRender(); if (typeof refreshWecker === 'function') refreshWecker();
+  u.onend = u.onerror = () => { J.speaking = false; softRender();  };
+  J.speaking = true; softRender(); 
   speechSynthesis.speak(u);
 }
 
@@ -62,8 +63,35 @@ function openClaude(scope, ask) {
 const openChat = openClaude;
 
 /* ---------- Einstellungen: James ---------- */
+function stLoad() { if (J.stimme == null && !J.stLoad) { J.stLoad = true; Promise.all([TH.call('/stimme'), TH.call('/wecker/code')]).then(([a, c]) => { J.stimme = a.aktiv; J.weckCode = c.code; softRender(); }).catch(() => {}).finally(() => { J.stLoad = false; }); } }
+// Morgen-Briefing nach dem Wecker: natürliche Stimme + Kurzbefehl-Anleitung.
+function briefSetup() {
+  stLoad();
+  const code = J.weckCode || '…', mp3 = location.origin + '/api/briefing.mp3?k=' + code, txt = location.origin + '/api/briefing?format=text&k=' + code;
+  const u = J.stimme ? mp3 : txt, cp = J.weckCode ? ' <button class="sm" data-j="copy" data-v="' + esc(u) + '">Kopieren</button>' : '';
+  return '<section class="card wk-setup"><h3>Morgen-Briefing nach dem Wecker</h3>'
+    + '<p class="hint">Du stellst den Wecker ganz normal in der Uhr-App. Sobald du ihn stoppst, sagt dir James, was ansteht – Wetter, Termine, To-dos, Mails, Training, Depot, Losung.</p>'
+    + '<div class="row"><button class="pri" data-j="brief">' + (J.speaking ? '■ Stopp' : '▶ Briefing anhören') + '</button></div>'
+    + '<p class="lbl" style="margin:10px 0 0">Stimme</p>'
+    + (J.stimme ? '<p class="hint">✓ Natürliche Stimme ist aktiv (OpenAI, ca. 1 € im Monat). <button class="sm" data-j="stimmeaus">Entfernen</button></p>'
+      : '<p class="hint">Für eine echte, natürliche Stimme statt Siri: auf platform.openai.com → API keys einen Schlüssel erstellen und 5 $ Guthaben aufladen (reicht etwa ein halbes Jahr). Der Schlüssel bleibt nur auf deinem James-Server.</p><div class="row"><input id="stkey" type="password" placeholder="sk-…" autocomplete="off" style="flex:1"><button class="pri" data-j="stimmeset">Speichern</button></div>')
+    + '<p class="lbl" style="margin:10px 0 0">Einmal einrichten (2 Minuten)</p><ol>'
+    + '<li>Kurzbefehle → <b>Automation</b> → <b>+</b> → <b>Wecker</b> → <b>Beliebig</b> (oder nur deinen Morgenwecker) → <b>Wird gestoppt</b> → <b>Sofort ausführen</b> → <b>Neue leere Automation</b>.</li>'
+    + '<li><b>Inhalte von URL abrufen</b> → <code class="wrap">' + esc(u) + '</code>' + cp + '</li>'
+    + (J.stimme ? '<li><b>Ton wiedergeben</b> → „Inhalte von URL“.</li>' : '<li><b>Text sprechen</b> → „Inhalte von URL“, Sprache Deutsch.</li>')
+    + '</ol><p class="hint">Testen: Wecker auf in 1 Minute stellen, Handy sperren, beim Klingeln „Stoppen“.' + (J.stimme ? '' : ' Wenn du später die natürliche Stimme aktivierst, ändert sich die Adresse – dann den Schritt hier neu übernehmen.') + '</p></section>';
+}
+// Briefing abspielen: natürliche Stimme (MP3) wenn aktiv, sonst Gerätestimme.
+function jPlay(fallbackText) {
+  if (J.speaking) { if (J.au) J.au.pause(); if (window.speechSynthesis) speechSynthesis.cancel(); J.speaking = false; return softRender(); }
+  if (!J.stimme || !J.weckCode) return fallbackText ? jSpeak(fallbackText) : jBriefing(false);
+  J.au = J.au || new Audio(); J.au.src = '/api/briefing.mp3?k=' + J.weckCode + '&t=' + Date.now();
+  J.speaking = true; softRender(); toast('James bereitet sich vor …');
+  J.au.onended = J.au.onerror = () => { J.speaking = false; softRender(); };
+  J.au.play().catch(() => { J.speaking = false; softRender(); toast('Abspielen ging nicht.'); });
+}
 function jamesSettings() {
-  return themeSettings() + '<section class="card"><h3>Claude-Connector</h3><p class="hint">Damit Claude in der Claude-App und in geplanten Aufgaben direkt mit James arbeitet – über dein Abo, ohne Zusatzkosten. In Claude: Einstellungen → Connectors → Eigenen Connector hinzufügen → Name „James“, diese Adresse einfügen. Die Adresse ist geheim wie ein Passwort.</p>'
+  return themeSettings() + briefSetup() + '<section class="card"><h3>Claude-Connector</h3><p class="hint">Damit Claude in der Claude-App und in geplanten Aufgaben direkt mit James arbeitet – über dein Abo, ohne Zusatzkosten. In Claude: Einstellungen → Connectors → Eigenen Connector hinzufügen → Name „James“, diese Adresse einfügen. Die Adresse ist geheim wie ein Passwort.</p>'
     + (J.mcpUrl ? '<code class="wrap mcpurl">' + esc(J.mcpUrl) + '</code><div class="row"><button data-j="copy" data-v="' + esc(J.mcpUrl) + '">Kopieren</button></div>' : '<div class="row"><button data-j="mcpshow">Adresse anzeigen</button></div>')
     + '<label class="f">Dein Name<input id="pname" value="' + esc(jName()) + '"></label></section>';
 }
@@ -404,7 +432,9 @@ const ym = () => today().slice(0, 7);
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-j]'); if (!b) return;
   const a = b.dataset.j;
-  if (a === 'brief') { const r = reports.get('james-' + today()); return r ? jSpeak(r.text) : jBriefing(false); }
+  if (a === 'brief') { const r = reports.get('james-' + today()); if (J.stimme) return jPlay(r && r.text); return r ? jSpeak(r.text) : jBriefing(false); }
+  if (a === 'stimmeset') { const v = (document.getElementById('stkey') || {}).value || ''; if (!v.trim()) return toast('Bitte den Schlüssel einfügen.'); b.textContent = 'Prüfe …'; TH.call('/stimme', { method: 'POST', body: JSON.stringify({ key: v.trim() }) }).then((r) => { J.stimme = r.aktiv; toast('Natürliche Stimme aktiv'); render(); }).catch(() => { b.textContent = 'Speichern'; toast('Schlüssel ungültig oder kein Guthaben.'); }); return; }
+  if (a === 'stimmeaus') { TH.call('/stimme', { method: 'POST', body: JSON.stringify({ key: '' }) }).then(() => { J.stimme = false; render(); }); return; }
   if (a === 'briefnew') return jBriefing(true);
   if (a === 'chat') return openChat(b.dataset.v);
   // Welt
@@ -536,70 +566,9 @@ function trainRecent() {
 }
 
 /* ============================================================
-   Wecker
-   ============================================================ */
-const WD7 = [[1, 'Mo'], [2, 'Di'], [3, 'Mi'], [4, 'Do'], [5, 'Fr'], [6, 'Sa'], [0, 'So']];
-function wk() { return Object.assign({ wt: '06:30', we: '07:45', days: [1, 2, 3, 4, 5, 6, 0], song: '', sec: 30, musik: 'radio', sender: 'srf3', fv: '05:30', fb: '08:30', aktiv: true }, settings.get('wecker') || {}); }
-function spotifyId(u) { const m = String(u || '').match(/track[/:]([A-Za-z0-9]{22})/); return m ? m[1] : ''; }
-function nextAlarm(w) {
-  const now = new Date(); let reg = null;
-  if (w.aktiv !== false) for (let i = 0; i < 8; i++) {
-    const d = addD(now, i), dw = d.getDay();
-    if (!w.days.includes(dw)) continue;
-    const [hh, mm] = (dw === 0 || dw === 6 ? w.we : w.wt).split(':').map(Number);
-    const at = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm);
-    if (at > now) { reg = at; break; }
-  }
-  const one = w.einmal ? new Date(String(w.einmal).replace(' ', 'T')) : null;
-  return one && one > now && (!reg || one < reg) ? one : reg;
-}
-const MUSIK = { radio: 'Webradio', apple: 'Apple Music', datei: 'Eigene Datei' };
-const SENDER = [['srf3', 'Radio SRF 3'], ['srf1', 'Radio SRF 1'], ['swisspop', 'Swiss Pop'], ['swissjazz', 'Swiss Jazz'], ['swissclassic', 'Swiss Classic'], ['swr3', 'SWR3']];
-const toMin = (s) => { const [h, m] = String(s || '0:0').split(':').map(Number); return h * 60 + m; };
-const fromMin = (m) => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
-function weckerHTML() {
-  const code = J.weckCode || '', uBrief = location.origin + '/api/briefing?format=text&k=' + (code || '…');
-  const cp = (v) => code ? ' <button class="sm" data-j="copy" data-v="' + esc(v) + '">Kopieren</button>' : '';
-  let h = '<div class="ch-head"><span class="orb"></span><b>Wecker</b><button data-j="weckclose">Fertig</button></div><div class="ch-body wk">';
-  h += '<section class="wk-hero"><span class="eyebrow">So weckt dich James</span>'
-    + '<div class="wk-flow"><span>⏰<small>Uhr-App<br>dein Song</small></span><i></i><span>👆<small>Stoppen</small></span><i></i><span>🎵<small>Song läuft<br>weiter</small></span><i></i><span><span class="orb" style="width:22px;height:22px;display:inline-block"></span><small>James spricht<br>darüber</small></span></div>'
-    + '<p class="hint" style="margin:10px 0 0;color:rgba(243,241,236,.6)">Uhrzeit und Song stellst du ganz normal in der Uhr-App ein – da hast du deine ganze Musik.</p></section>';
-  h += '<section class="card"><h3>Briefing testen</h3><p class="hint">So klingt James morgen früh: Wetter, Termine, To-dos, Mails, Training, Depot, Losung und ein Satz zum Schluss.</p><div class="row"><button class="pri" data-j="brief">' + (J.speaking ? '■ Stopp' : '▶ Briefing anhören') + '</button></div></section>';
-  h += '<section class="card wk-setup"><h3>Einmal einrichten (3 Minuten)</h3>'
-    + (code ? '' : '<div class="row"><button class="pri" data-j="weckcode">Adresse erzeugen</button></div>')
-    + '<p class="lbl" style="margin:6px 0 0">1 · Uhr-App</p><ol><li>Einen Wecker anlegen (oder deinen bestehenden nehmen) → <b>Ton</b> → ganz oben <b>Song auswählen</b> → deinen Song.</li><li>Die Uhrzeit änderst du ab jetzt einfach immer in diesem Wecker.</li></ol>'
-    + '<p class="lbl" style="margin:6px 0 0">2 · Eine Automation</p><ol>'
-    + '<li>Kurzbefehle → <b>Automation</b> → <b>+</b> → <b>Wecker</b> → genau diesen Wecker wählen → <b>Wird gestoppt</b> → <b>Sofort ausführen</b> → <b>Neue leere Automation</b>.</li>'
-    + '<li><b>Musik wiedergeben</b> → denselben Song wählen.</li>'
-    + '<li><b>Lautstärke festlegen</b> → 40 %.</li>'
-    + '<li><b>Warten</b> → 15 Sekunden.</li>'
-    + '<li><b>Inhalte von URL abrufen</b> → <code class="wrap">' + esc(uBrief) + '</code>' + cp(uBrief) + '</li>'
-    + '<li><b>Text sprechen</b> → „Inhalte von URL“, Sprache Deutsch, beste Stimme (z. B. Anna Premium). Die Musik wird beim Sprechen von selbst leiser.</li></ol>'
-    + '<p class="hint">Testen: Wecker auf in 2 Minuten stellen, Handy sperren, beim Klingeln „Stoppen“ tippen.</p></section>';
-  h += '<section class="card wk-night"><h3>Ohne Uhr-App: Nachttisch-Modus</h3><p class="hint">Nur wenn James über Nacht offen am Ladekabel bleibt: Radio wird langsam lauter, auf „Guten Morgen“ wird es leise und James spricht über die Musik.</p><div class="row"><input type="time" value="' + esc(wk().nacht || wk().wt) + '" data-wk="nacht" style="flex:1"><button data-j="nightstart">🌙 Nachttisch-Modus starten</button></div></section>';
-  return h + '</div>';
-}
-// Echten iPhone-Wecker über den Kurzbefehl „James Wecker stellen“ setzen (Zeit kommt als Eingabe mit).
-function wkPush(n) {
-  const t = n ? pad(n.getHours()) + ':' + pad(n.getMinutes()) : 'aus';
-  const w = settings.edit('wecker'), cur = wk(); Object.keys(cur).forEach((k) => { if (w[k] == null) w[k] = cur[k]; });
-  w.gestellt = t; settings.touch('wecker', 0); refreshWecker();
-  if (!/iPhone|iPad|Macintosh/.test(navigator.userAgent)) return toast('Wecker stellen geht nur auf dem iPhone.');
-  setTimeout(() => { location.href = 'shortcuts://run-shortcut?name=' + encodeURIComponent('James Wecker stellen') + '&input=text&text=' + encodeURIComponent(t); }, 250);
-}
-function weckerView() {
-  if (!J.weckCode && !J.weckLoading) { J.weckLoading = true; TH.call('/wecker/code').then((r) => { J.weckCode = r.code; if (view === 'wecker') render(); }).catch(() => {}).finally(() => { J.weckLoading = false; }); }
-  const html = weckerHTML(), k = html.indexOf('<div class="ch-body wk">');
-  return '<div class="wk wkpage">' + html.slice(k + '<div class="ch-body wk">'.length, -'</div>'.length) + '</div>';
-}
-function openWecker() { setView('wecker'); }
-function refreshWecker() { if (view === 'wecker') render(); }
-function closeWecker() { setView('heute'); }
-
-/* ============================================================
    Seitenmenü (aus- und einklappbar)
    ============================================================ */
-const NAV = [['heute', 'James'], ['wecker', 'Wecker'], ['todos', 'To-dos'], ['training', 'Training'], ['einkauf', 'Einkauf'], ['gebet', 'Gebet'], ['orte', 'Welt'], ['jobs', 'Karriere'], ['einstellungen', 'Einstellungen']];
+const NAV = [['heute', 'James'], ['todos', 'To-dos'], ['training', 'Training'], ['einkauf', 'Einkauf'], ['gebet', 'Gebet'], ['orte', 'Welt'], ['jobs', 'Karriere'], ['einstellungen', 'Einstellungen']];
 const NAVIC = {
   wecker: '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.8M4.5 5.5l3-2.5M19.5 5.5l-3-2.5"/></svg>',
   einstellungen: '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
@@ -642,50 +611,8 @@ document.addEventListener('click', (e) => {
     if (!typeOf(sel) && planT(sel) !== 'free') { const p = planT(sel); setTrainType(p === 'gym' ? 'g' + nextTpl(sel) : p); }
     return;
   }
-  if (a === 'wecker') return openWecker();
-  if (a === 'weckclose') return closeWecker();
-  if (a === 'wkday') { const w = settings.edit('wecker'); const cur = wk(); const d = +b.dataset.v; w.days = cur.days.includes(d) ? cur.days.filter((x) => x !== d) : cur.days.concat(d); settings.touch('wecker', 0); return refreshWecker(); }
-  if (a === 'wksender') { const w = settings.edit('wecker'); w.sender = b.dataset.v; settings.touch('wecker', 0); refreshWecker(); setTimeout(() => TH.call('/radio/prepare', { method: 'POST' }).catch(() => {}), 1500); return; }
-  if (a === 'wkradiotest') {
-    const au = document.getElementById('wkaudio'); if (!au) return;
-    if (!au.paused) { au.pause(); b.textContent = '▶ Probehören'; return; }
-    b.textContent = 'Lade …';
-    TH.call('/wecker/code').then((r) => { au.src = '/api/radio?live=1&s=' + encodeURIComponent(wk().sender) + '&sec=15&k=' + r.code; return au.play(); })
-      .then(() => { b.textContent = '■ Stopp'; }).catch(() => { b.textContent = '▶ Probehören'; toast('Probehören gerade nicht möglich.'); });
-    au.onended = () => { b.textContent = '▶ Probehören'; };
-    return;
-  }
-  if (a === 'wkset') return wkPush(nextAlarm(wk()));
-  if (a === 'wkone') {
-    const v = (document.getElementById('wkone') || {}).value; if (!/^\d\d:\d\d$/.test(v || '')) return toast('Bitte eine Uhrzeit wählen.');
-    const now = new Date(), [hh, mm] = v.split(':').map(Number); let d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm);
-    if (d <= now) d = addD(d, 1);
-    const w = settings.edit('wecker'), cur = wk(); Object.keys(cur).forEach((k) => { if (w[k] == null) w[k] = cur[k]; });
-    w.einmal = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + v; settings.touch('wecker', 0);
-    return wkPush(nextAlarm(wk()));
-  }
-  if (a === 'wkoneoff') { const w = settings.edit('wecker'); w.einmal = ''; settings.touch('wecker', 0); return wkPush(nextAlarm(wk())); }
-  if (a === 'wkaktiv') { const w = settings.edit('wecker'); w.aktiv = wk().aktiv === false; settings.touch('wecker', 0); return refreshWecker(); }
-  if (a === 'wkmus') { const w = settings.edit('wecker'); w.musik = b.dataset.v; settings.touch('wecker', 0); return refreshWecker(); }
-  if (a === 'weckcode') { TH.call('/wecker/code').then((r) => { J.weckCode = r.code; refreshWecker(); }).catch(() => toast('Gerade nicht möglich.')); return; }
   if (a === 'copy') { const v = b.dataset.v; (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject()).then(() => toast('Kopiert')).catch(() => { prompt('Kopieren:', v); }); return; }
 });
-document.addEventListener('input', (e) => {
-  const t = e.target; if (!t.dataset || !t.dataset.wk) return;
-  const w = settings.edit('wecker'), cur = wk();
-  Object.keys(cur).forEach((k) => { if (w[k] == null) w[k] = cur[k]; });
-  w[t.dataset.wk] = t.dataset.wk === 'sec' ? +t.value : t.value.trim();
-  settings.touch('wecker', 700);
-  if (t.dataset.wk === 'sec') { const l = t.closest('label'); if (l) l.firstChild.textContent = 'Länge: ' + t.value + ' Sekunden'; }
-});
-document.addEventListener('change', (e) => {
-  const t = e.target; if (!t.dataset || !t.dataset.wk) return;
-  const w = settings.edit('wecker'), cur = wk();
-  Object.keys(cur).forEach((k) => { if (w[k] == null) w[k] = cur[k]; });
-  w[t.dataset.wk] = t.dataset.wk === 'sec' ? +t.value : t.value.trim();
-  settings.touch('wecker', 0);
-});
-
 /* ============================================================
    Herrnhuter Losung (kommt mit dem Tagesbericht: reports/tag-<Datum>.losung)
    ============================================================ */
@@ -696,96 +623,3 @@ function losungCard() {
     + (l.lehr ? '<blockquote class="lt">' + esc(l.lehr) + '<cite>' + esc(l.lehrRef || '') + '</cite></blockquote>' : '')
     + '<small class="src">Herrnhuter Losungen · © Evangelische Brüder-Unität – Herrnhuter Brüdergemeine</small></section>';
 }
-
-/* ============================================================
-   Nachttisch-Wecker: James bleibt über Nacht offen, weckt mit Musik,
-   und auf „Guten Morgen“ wird die Musik leiser und James spricht.
-   ============================================================ */
-const N = { on: false, fired: false, speaking: false, done: false, ctx: null, gain: null, audio: null, lock: null, rec: null, t: 0, at: null, text: '' };
-function bestVoice() {
-  const vs = (window.speechSynthesis ? speechSynthesis.getVoices() : []).filter((v) => /^de/i.test(v.lang));
-  return vs.find((v) => /premium/i.test(v.name)) || vs.find((v) => /enhanced|erweitert/i.test(v.name)) || vs.find((v) => /anna|markus|helena|martin|yannick|petra/i.test(v.name)) || vs[0] || null;
-}
-async function nightLock() { try { if ('wakeLock' in navigator) N.lock = await navigator.wakeLock.request('screen'); } catch (e) { N.lock = null; } }
-document.addEventListener('visibilitychange', () => { if (N.on && document.visibilityState === 'visible') nightLock(); });
-async function nightStart() {
-  const w = wk();
-  if (!J.weckCode) { try { J.weckCode = (await TH.call('/wecker/code')).code; } catch (e) { toast('Keine Verbindung.'); return; } }
-  const Ctx = window.AudioContext || window.webkitAudioContext;
-  N.ctx = new Ctx(); N.gain = N.ctx.createGain(); N.gain.gain.value = 0.0001; N.gain.connect(N.ctx.destination);
-  N.audio = new Audio(); N.audio.crossOrigin = 'anonymous'; N.audio.preload = 'none'; N.audio.setAttribute('playsinline', '');
-  N.ctx.createMediaElementSource(N.audio).connect(N.gain);
-  // iOS gibt Ton nur nach einem Tipp frei – deshalb jetzt einmal kurz „entsperren“
-  const buf = N.ctx.createBuffer(1, 1, 22050), src = N.ctx.createBufferSource(); src.buffer = buf; src.connect(N.ctx.destination); src.start(0);
-  try { speechSynthesis.speak(new SpeechSynthesisUtterance(' ')); } catch (e) {}
-  N.on = true; N.fired = N.speaking = N.done = false; N.text = ''; { const [hh, mm] = String(w.nacht || w.wt).split(':').map(Number), d = new Date(); N.at = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm); if (N.at <= d) N.at = addD(N.at, 1); }
-  await nightLock();
-  nightRender();
-  clearInterval(N.t); N.t = setInterval(nightTick, 1000);
-}
-function nightTick() {
-  const c = document.getElementById('nclock');
-  if (c) { const d = new Date(); c.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()); }
-  if (N.on && !N.fired && N.at && Date.now() >= N.at.getTime()) nightFire();
-}
-function ramp(v, sec) { const g = N.gain.gain, t = N.ctx.currentTime; g.cancelScheduledValues(t); g.setValueAtTime(Math.max(0.0001, g.value), t); g.linearRampToValueAtTime(v, t + sec); }
-function nightFire() {
-  N.fired = true; N.ctx.resume();
-  N.audio.src = '/api/radio/live?k=' + encodeURIComponent(J.weckCode) + '&s=' + encodeURIComponent(wk().sender || 'srf3');
-  N.audio.play().catch(() => {});
-  ramp(0.85, 40); // sanft lauter werden
-  nightListen(); nightRender();
-}
-function nightListen() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR || !N.on || N.speaking || N.done) return;
-  try {
-    const r = new SR(); r.lang = 'de-DE'; r.continuous = true; r.interimResults = true;
-    r.onresult = (e) => { const txt = [...e.results].map((x) => x[0].transcript).join(' '); if (/guten morgen|morgen|james/i.test(txt)) { try { r.stop(); } catch (_) {} nightBriefing(); } };
-    r.onend = () => { if (N.on && N.fired && !N.speaking && !N.done) setTimeout(nightListen, 600); };
-    r.start(); N.rec = r;
-  } catch (e) {}
-}
-async function nightBriefing() {
-  if (N.speaking || N.done) return;
-  N.speaking = true;
-  if (!N.fired) { N.fired = true; N.ctx.resume(); }
-  ramp(0.1, 1.5); // Musik leiser, sie läuft unter der Stimme weiter
-  let text = 'Guten Morgen, ' + jName() + '.';
-  try { text = (await TH.call('/briefing')).text || text; } catch (e) {}
-  N.text = text; nightRender();
-  const u = new SpeechSynthesisUtterance(text); u.lang = 'de-DE'; u.rate = 0.98; u.pitch = 1;
-  const v = bestVoice(); if (v) u.voice = v;
-  u.onend = u.onerror = () => { N.speaking = false; N.done = true; ramp(0.5, 3); nightRender(); };
-  setTimeout(() => speechSynthesis.speak(u), 1600);
-}
-function nightStop() {
-  N.on = false; clearInterval(N.t);
-  try { N.audio.pause(); N.audio.removeAttribute('src'); N.audio.load(); } catch (e) {}
-  try { N.rec && N.rec.stop(); } catch (e) {}
-  try { speechSynthesis.cancel(); } catch (e) {}
-  try { N.lock && N.lock.release(); } catch (e) {}
-  try { N.ctx && N.ctx.close(); } catch (e) {}
-  const el = document.getElementById('night'); if (el) el.remove();
-  document.body.classList.remove('lock');
-}
-function nightRender() {
-  let el = document.getElementById('night');
-  if (!N.on) { if (el) el.remove(); return; }
-  if (!el) { el = document.createElement('div'); el.id = 'night'; document.body.appendChild(el); document.body.classList.add('lock'); }
-  const d = new Date(), at = N.at;
-  let body;
-  if (!N.fired) body = '<p class="n-sub">Wecker ' + (at ? WDL[at.getDay()] + ', ' + pad(at.getHours()) + ':' + pad(at.getMinutes()) : '–') + '</p><p class="n-hint">Lass James offen und am Ladekabel. Das Display bleibt dunkel an.' + (N.lock ? '' : ' Stell zur Sicherheit „Automatische Sperre“ auf „Nie“.') + '</p><div class="n-row"><button data-j="nighttest">Jetzt testen</button><button data-j="nightstop">Beenden</button></div>';
-  else if (!N.speaking && !N.done) body = '<p class="n-sub">Guten Morgen ☀︎</p><button class="n-big" data-j="nightbrief">Sag „Guten Morgen“<small>oder tippe hier</small></button><div class="n-row"><button data-j="nightstop">Aus</button></div>';
-  else body = '<div class="n-text">' + (N.text ? esc(N.text) : '<span class="busyline"><span class="orb busy"></span>Einen Moment …</span>') + '</div><div class="n-row">' + (N.done ? '<button data-j="nightmute">Musik aus</button>' : '') + '<button data-j="nightstop">Fertig</button></div>';
-  el.innerHTML = '<div class="n-in"><span class="orb' + (N.speaking ? ' busy' : '') + '"></span><div id="nclock" class="n-clock">' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + '</div>' + body + '</div>';
-}
-document.addEventListener('click', (e) => {
-  const b = e.target.closest('[data-j]'); if (!b) return;
-  const a = b.dataset.j;
-  if (a === 'nightstart') return nightStart();
-  if (a === 'nightbrief') return nightBriefing();
-  if (a === 'nighttest') return nightFire();
-  if (a === 'nightstop') return nightStop();
-  if (a === 'nightmute') { ramp(0.0001, 2); setTimeout(() => { try { N.audio.pause(); } catch (err) {} }, 2100); b.remove(); return; }
-});

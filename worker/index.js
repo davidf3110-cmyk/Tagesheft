@@ -2,6 +2,7 @@
 // Speichert alle Daten als Dokumente (Sammlung + ID + JSON) in D1.
 // Alle /api-Aufrufe brauchen den Zugangscode (Secret APP_TOKEN) als Bearer-Token.
 
+import { speech, voiceKey, checkKey } from './tts.js';
 import { calendarEvents } from './ical.js';
 import { serveStatic } from './static.js';
 import { mcp } from './mcp.js';
@@ -58,7 +59,7 @@ async function api(req, env, url) {
   // Der Wecker-Kurzbefehl darf nur das Briefing abrufen, mit eigenem Code (?k=).
   let weck = false;
   const wkKey = url.searchParams.get('k');
-  if ((p === '/api/briefing' || p === '/api/radio' || p === '/api/radio/live' || p === '/api/wecker/jetzt' || p === '/api/wecker/naechste') && wkKey) {
+  if ((p === '/api/briefing' || p === '/api/briefing.mp3' || p === '/api/radio' || p === '/api/radio/live' || p === '/api/wecker/jetzt' || p === '/api/wecker/naechste') && wkKey) {
     const r = await env.DB.prepare('SELECT v FROM secrets WHERE k=?1').bind('weckcode').first();
     weck = !!(r && r.v && r.v.length === wkKey.length && r.v === wkKey);
   }
@@ -148,6 +149,26 @@ async function api(req, env, url) {
     } catch (e) {
       return json({ error: 'calendar_failed', message: String(e && e.message || e).slice(0, 200) }, 502);
     }
+  }
+
+  // Morgen-Briefing als MP3 mit natürlicher Stimme (für den Kurzbefehl nach dem Wecker und die App).
+  if (p === '/api/briefing.mp3' && req.method === 'GET') {
+    const doc = await briefing(env, { events: await todaysEvents(env) });
+    try {
+      const buf = await speech(env, doc.text);
+      return new Response(buf, { headers: { 'content-type': 'audio/mpeg', 'cache-control': 'no-store', 'content-length': String(buf.byteLength) } });
+    } catch (e) {
+      return json({ error: String(e.message || e).startsWith('nokey') ? 'nokey' : 'tts_failed', message: String(e.message || e).slice(0, 200) }, 503);
+    }
+  }
+  if (p === '/api/stimme' && req.method === 'GET') return json({ aktiv: !!(await voiceKey(env)) });
+  if (p === '/api/stimme' && req.method === 'POST') {
+    if (weck) return json({ error: 'unauthorized' }, 401);
+    const { key } = await req.json();
+    if (!key) { await env.DB.prepare('DELETE FROM secrets WHERE k=?1').bind('openai').run(); return json({ aktiv: false }); }
+    if (!(await checkKey(String(key).trim()))) return json({ error: 'Schlüssel ungültig' }, 400);
+    await env.DB.prepare('INSERT OR REPLACE INTO secrets (k,v) VALUES (?1,?2)').bind('openai', String(key).trim()).run();
+    return json({ aktiv: true });
   }
 
   // Morgen-Briefing. format=text liefert reinen Text (für den Kurzbefehl zum Vorlesen).
@@ -295,12 +316,16 @@ async function weckPlan(env) {
 export default {
   // Jeden Morgen um 5:15 Uhr (UTC) das Briefing vorbereiten, damit es beim Wecken sofort da ist.
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(todaysEvents(env).then((events) => briefing(env, { fresh: true, events })).catch(() => {}));
-    ctx.waitUntil(prepareRadio(env).catch(() => {}));
+    ctx.waitUntil(todaysEvents(env).then((events) => briefing(env, { fresh: true, events })).then((d) => speech(env, d.text)).catch(() => {}));
   },
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     if (url.pathname.startsWith('/mcp/')) {
+      // Schreibt Claude den Tagesbericht, Briefing und Stimme gleich vorbereiten – dann ist es beim Wecken sofort da.
+      if (req.method === 'POST') {
+        const body = await req.clone().text().catch(() => '');
+        if (/"reports"/.test(body) && /tag-\d{4}/.test(body)) ctx.waitUntil(new Promise((r) => setTimeout(r, 3000)).then(() => todaysEvents(env)).then((events) => briefing(env, { events })).then((d) => speech(env, d.text)).catch(() => {}));
+      }
       try { return await mcp(req, env, url.pathname.slice(5).replace(/\/$/, '')); }
       catch (e) { return json({ jsonrpc: '2.0', id: null, error: { code: -32603, message: 'Interner Fehler' } }, 500); }
     }

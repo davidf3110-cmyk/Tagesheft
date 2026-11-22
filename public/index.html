@@ -651,7 +651,7 @@ async function loadCalOnce(){
   render();
 }
 /* ================= Zustand ================= */
-const VIEWS=['heute','todos','training','einkauf','gebet','orte','jobs','wecker','einstellungen'];
+const VIEWS=['heute','todos','training','einkauf','gebet','orte','jobs','einstellungen'];
 let view='heute',sub='tag',sel=today();
 try{const v=localStorage.getItem('th-view');if(VIEWS.includes(v))view=v;const s=localStorage.getItem('th-sub');if(s==='woche')sub='woche'}catch(e){}
 (function(){const h=location.hash.slice(1);if(VIEWS.includes(h))view=h;if(h==='woche'){view='heute';sub='woche'}})();
@@ -1435,7 +1435,7 @@ function render(){
   else if(view==='jobs')h=karriereView();
   else if(view==='todos')h=todosView();
   else if(view==='orte')h=weltView();
-  else if(view==='wecker')h=weckerView();
+
   else if(view==='einstellungen')h=setHTML();
   else h=heuteTag();
   $('#view').innerHTML=h;
