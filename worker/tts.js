@@ -69,3 +69,8 @@ export async function checkKey(key) {
   const r = await fetch(API + '/voices?languageCode=de-DE&key=' + encodeURIComponent(key));
   return r.ok ? '' : ((await r.json().catch(() => ({}))).error || {}).message || ('Fehler ' + r.status);
 }
+// Einmalig sprechen, ohne den Briefing-Zwischenspeicher zu überschreiben (für die Demo).
+export async function speakOnce(env, text) {
+  const key = await gkey(env); if (!key) throw new Error('nokey');
+  return synth(key, await voiceOf(env), text);
+}

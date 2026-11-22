@@ -3,7 +3,7 @@
 // Alle /api-Aufrufe brauchen den Zugangscode (Secret APP_TOKEN) als Bearer-Token.
 
 import { calendarEvents } from './ical.js';
-import { speech, probe, gkey, voices, voiceOf, checkKey } from './tts.js';
+import { speech, probe, gkey, voices, voiceOf, checkKey, speakOnce } from './tts.js';
 import { serveStatic } from './static.js';
 import { mcp } from './mcp.js';
 import { briefing, geocode, reverseGeocode, todayLocal } from './ai.js';
@@ -60,7 +60,7 @@ async function api(req, env, url) {
   // Der Wecker-Kurzbefehl darf nur das Briefing abrufen, mit eigenem Code (?k=).
   let weck = false;
   const wkKey = url.searchParams.get('k');
-  if ((p === '/api/briefing' || p === '/api/briefing.mp3' || p === '/api/stimme/probe') && wkKey) {
+  if ((p === '/api/briefing' || p === '/api/briefing.mp3' || p === '/api/stimme/probe' || p === '/api/briefing/demo') && wkKey) {
     const r = await env.DB.prepare('SELECT v FROM secrets WHERE k=?1').bind('weckcode').first();
     weck = !!(r && r.v && r.v.length === wkKey.length && r.v === wkKey);
   }
@@ -157,6 +157,14 @@ async function api(req, env, url) {
     const doc = await briefing(env, { events: await todaysEvents(env) });
     try { return mp3(await speech(env, doc.text)); }
     catch (e) { return json({ error: String(e.message).startsWith('nokey') ? 'nokey' : 'tts_failed', message: String(e.message).slice(0, 200) }, 503); }
+  }
+  // Demo-Briefing für einen Montag mit Beispieldaten (wird nicht gespeichert).
+  if (p === '/api/briefing/demo' && req.method === 'GET') {
+    const doc = await briefing(env, { demo: true, fresh: true });
+    if (url.searchParams.get('format') === 'mp3') {
+      try { return mp3(await speakOnce(env, doc.text)); } catch (e) { return json({ error: 'tts_failed', message: String(e.message).slice(0, 200) }, 503); }
+    }
+    return new Response(doc.text, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
   }
   if (p === '/api/stimme/probe' && req.method === 'GET') {
     try { return mp3(await probe(env, url.searchParams.get('v') || '')); }

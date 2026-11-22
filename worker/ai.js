@@ -187,11 +187,19 @@ function sprech(x) {
     .replace(/\s+,/g, ',').replace(/,\s*,/g, ',').replace(/,\s*\./g, '.').replace(/\s{2,}/g, ' ').trim();
 }
 // Gesprochenes Morgen-Briefing: Termine, To-dos, wichtige Mails, Wetter, Depot – und ein persönlicher Schluss.
-export async function briefing(env, { fresh = false, events = null } = {}) {
-  const t = todayLocal();
+// Beispiel-Tagesbericht für die Demo (Montag), wird nicht gespeichert.
+const DEMO = {
+  termine: [{ z: '09:30', n: 'Abstimmung Complaints-Team' }, { z: '14:00', n: 'Telefoninterview CPM-Stelle Mannheim' }],
+  mails: [{ w: 'Roche Recruiting', b: 'Einladung Interview', a: 'Termin eingetragen' }],
+  mailtext: 'Roche Recruiting hat dein Telefoninterview für die CPM-Stelle in Mannheim bestätigt, heute um 14 Uhr. Und Sunrise erinnert an die offene Rechnung über 6 Franken, die bis zum 11. Dezember raus muss, ein To-do liegt schon in James.',
+  depot: { wert: 18420, cur: 'CHF', diff: 74, pct: 0.4 },
+  schluss: 'Interview um zwei, Sir. Sie suchen jemanden, der liefert. Zeigen wir ihnen, dass sie ihn gefunden haben.',
+};
+export async function briefing(env, { fresh = false, events = null, demo = false } = {}) {
+  const t = demo ? iso(new Date(Date.parse(todayLocal()) + 864e5)) : todayLocal();
   const id = 'james-' + t;
-  const rep = await one(env, 'reports', 'tag-' + t);
-  if (!fresh) {
+  const rep = demo ? DEMO : await one(env, 'reports', 'tag-' + t);
+  if (!fresh && !demo) {
     const cached = await one(env, 'reports', id);
     const stale = rep && rep.at && cached && cached.at && Date.parse(rep.at) > Date.parse(cached.at);
     if (cached && cached.text && cached.v === 5 && !stale) return cached;
@@ -203,7 +211,7 @@ export async function briefing(env, { fresh = false, events = null } = {}) {
   const S = [];
   const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).find((x) => x.type === 'hour').value);
   // Kurz und zackig: nur sagen, was ansteht – keine „nichts da“-Sätze.
-  S.push(`${hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend'}, ${P.name}. Heute ist ${WDL[d.getUTCDay()]}, der ${d.getUTCDate()}. ${MON[d.getUTCMonth()]}.`);
+  S.push(`${demo || hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend'}, ${P.name}. Heute ist ${WDL[d.getUTCDay()]}, der ${d.getUTCDate()}. ${MON[d.getUTCMonth()]}.`);
 
   // Wetter
   const w = W || (rep && rep.wetter);
@@ -248,6 +256,7 @@ export async function briefing(env, { fresh = false, events = null } = {}) {
   S.push((rep && (rep.schluss || rep.impuls)) || SCHLUSS[n % SCHLUSS.length]);
   const text = sprech(S.join(' '));
   const doc = { type: 'james', v: 5, d: t, text, wetter: W, at: new Date().toISOString() };
+  if (demo) return doc;
   await put(env, 'reports', id, doc);
   return doc;
 }
