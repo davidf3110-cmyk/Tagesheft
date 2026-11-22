@@ -1,7 +1,7 @@
 <!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Tagesheft</title>
-<meta name="theme-color" content="#F2F4F6" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#10181D" media="(prefers-color-scheme: dark)">
-<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Tagesheft">
+<title>James</title>
+<meta name="theme-color" content="#F4F3EF" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0B0B0C" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="James">
 <link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon-180.png">
 <style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 </head><body>
@@ -393,10 +393,12 @@ details.more.card summary{font-weight:600;color:var(--ink)}
 .nextph{justify-self:start;margin-top:2px}
 
 </style>
+<link rel="stylesheet" href="james.css">
 
 <main>
-  <header><h1 id="ttl">Tagesheft</h1><span class="hrt"><span class="hint" id="hdate"></span><button class="gear" id="setbtn" aria-label="Einstellungen"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button></span></header>
+  <header><div class="htl"><span class="eyebrow" id="hdate"></span><h1 id="ttl">James</h1></div><span class="hrt"><button class="gear" id="setbtn" aria-label="Einstellungen"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button></span></header>
   <p id="banner" class="banner" role="status" hidden></p>
+  <div id="jtop"></div>
   <div class="nav" id="navrow"><button data-wk="-1" aria-label="Vorwoche">‹</button><div id="wk"></div><button data-wk="1" aria-label="Nächste Woche">›</button><button id="today">Heute</button></div>
   <div id="strip"></div>
   <div id="view" style="display:grid;gap:14px"></div>
@@ -407,6 +409,7 @@ details.more.card summary{font-weight:600;color:var(--ink)}
 <div id="setov" hidden><div class="backdrop" id="setclose"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="setTitle"><div class="sheet-in" id="setsheet"></div></div></div>
 <div id="toast" hidden></div>
 <script src="sync.js"></script>
+<script src="james.js"></script>
 <script>
 /* ================= Grundbausteine ================= */
 const $=s=>document.querySelector(s);
@@ -810,7 +813,7 @@ function berichtCard(k){
   const t=today(),r=reports.get('tag-'+k),at=r&&r.at?new Date(r.at):null;
   const neu=!!r&&(Array.isArray(r.mails)||!!r.wetter||Array.isArray(r.notes));
   const stand=at&&!isNaN(at)?'Stand '+pad(at.getHours())+':'+pad(at.getMinutes()):k>t?'kommt am Morgen':k===t?'kommt um '+(isWE(k)?'7:45':'6:45'):'';
-  let h='<section class="card"><div class="head"><h2>Tagesbericht</h2><span class="hint">'+stand+'</span></div>';
+  let h='<section class="card"><div class="head"><h2>Dein Tag</h2><span class="hint">'+stand+'</span></div>';
   if(neu&&(r.notes||[]).length)h+='<div class="notes">'+r.notes.slice(0,3).map(n=>'<p class="note1">'+inl(n)+'</p>').join('')+'</div>';
   /* To-dos */
   const list=tdList(k),later=tdLater(k),openCnt=todos.all().filter(([,x])=>x.st!=='done').length;
@@ -1364,61 +1367,10 @@ function addTodo2(){
   td2.t='';render();const n=$('#tdnew2');if(n)n.focus();
 }
 
-/* ================= Orte, die ich sehen will ================= */
-const orte=mkStore('orte');ALL.push(orte);if(MODE==='db')subscribe(orte);
-let oDraft={n:'',land:''},oOpen='',oConfirm='',oFilter='offen';
-function orteView(){
-  const all=orte.all(),open=all.filter(([,x])=>!x.besucht),seen=all.filter(([,x])=>x.besucht);
-  const srt=(a,b)=>((b[1].prio?1:0)-(a[1].prio?1:0))||String(a[1].land||'').localeCompare(String(b[1].land||''))||String(a[1].n).localeCompare(String(b[1].n));
-  let h='<section class="card"><div class="head"><h2>Orte, die ich sehen will</h2><span class="hint">'+seen.length+' von '+all.length+' besucht</span></div>'
-    +'<form class="add" id="oform" autocomplete="off"><input id="onew" placeholder="Ort, z. B. Lofoten" value="'+esc(oDraft.n)+'" data-in="on" aria-label="Ort"><button class="pri plus" type="submit" aria-label="Hinzufügen">+</button></form>'
-    +'<input id="oland" placeholder="Land oder Region (optional)" value="'+esc(oDraft.land)+'" data-in="oland" aria-label="Land">'
-    +(all.length?'<div class="track" aria-hidden="true"><i style="width:'+Math.round(seen.length/all.length*100)+'%"></i></div>':'')+'</section>';
-  h+='<div class="seg2" role="tablist"><button data-a="ofilt" data-v="offen" class="'+(oFilter==='offen'?'on':'')+'" aria-selected="'+(oFilter==='offen')+'">Noch offen ('+open.length+')</button><button data-a="ofilt" data-v="besucht" class="'+(oFilter==='besucht'?'on':'')+'" aria-selected="'+(oFilter==='besucht')+'">Besucht ('+seen.length+')</button></div>';
-  const L=(oFilter==='offen'?open:seen).sort(oFilter==='offen'?srt:(a,b)=>String(b[1].besucht).localeCompare(String(a[1].besucht)));
-  if(!orte.ready&&!all.length)return h+'<p class="hint">Lade …</p>';
-  if(!L.length)return h+'<p class="hint">'+(oFilter==='offen'?'Noch keine Orte. Wohin willst du unbedingt mal?':'Noch nichts abgehakt.')+'</p>';
-  h+='<section class="card"><div>'+L.map(([id,x])=>{
-    const v=!!x.besucht,meta=[x.land,v?'besucht '+fmtDate(x.besucht):'',x.note].filter(Boolean).map(esc).join(' · ');
-    let r='<div class="td'+(v?' done':'')+'"><button class="ck round'+(v?' on':'')+'" data-a="ock" data-id="'+id+'" aria-pressed="'+v+'" aria-label="'+esc(x.n)+(v?' – doch nicht besucht':' – besucht')+'">'+(v?'✓':'')+'</button>'
-      +'<button class="t" data-a="oopen" data-id="'+id+'" aria-expanded="'+(oOpen===id)+'"><b>'+(x.prio?'⭐ ':'')+esc(x.n)+'</b>'+(meta?'<small>'+meta+'</small>':'')+'</button>';
-    if(oOpen===id)r+='<div class="tdedit"><label class="f">Ort<input value="'+esc(x.n)+'" data-of="n" data-id="'+id+'"></label><label class="f">Land oder Region<input value="'+esc(x.land||'')+'" data-of="land" data-id="'+id+'"></label>'
-      +'<label class="f">Notiz<input value="'+esc(x.note||'')+'" placeholder="Beste Reisezeit, Idee, mit wem …" data-of="note" data-id="'+id+'"></label>'
-      +(v?'<label class="f">Besucht am<input type="date" value="'+esc(x.besucht)+'" data-of="besucht" data-id="'+id+'"></label>':'')
-      +'<div class="row"><button data-a="ostar" data-id="'+id+'">'+(x.prio?'Kein Favorit mehr':'⭐ Favorit')+'</button>'
-      +(oConfirm===id?'<button class="danger fill" data-a="odelyes" data-id="'+id+'">Wirklich löschen</button><button data-a="odelno">Abbrechen</button>':'<button data-a="oclose">Fertig</button><button class="danger" data-a="odel" data-id="'+id+'">Löschen</button>')+'</div></div>';
-    return r+'</div>';
-  }).join('')+'</div></section>';
-  return h;
-}
-function addOrt(){
-  const a=$('#onew'),b=$('#oland');if(a)oDraft.n=a.value;if(b)oDraft.land=b.value;
-  const n=oDraft.n.trim();if(!n){if(a)a.focus();return}
-  orte.put('o'+uid(),{n,land:oDraft.land.trim(),note:'',prio:false,besucht:'',created:new Date().toISOString()},0);
-  toast(n+' steht auf der Liste');oDraft={n:'',land:oDraft.land};oFilter='offen';render();const x=$('#onew');if(x)x.focus();
-}
-function orteClick(b){
-  const a=b.dataset.a,id=b.dataset.id;
-  if(a==='ofilt'){oFilter=b.dataset.v;oOpen='';return render()}
-  if(a==='ock'){const x=orte.edit(id);x.besucht=x.besucht?'':today();orte.touch(id,0);if(x.besucht)toast('🎉 '+x.n+' besucht!',()=>{const y=orte.edit(id);y.besucht='';orte.touch(id,0);render()});return render()}
-  if(a==='oopen'){oOpen=oOpen===id?'':id;oConfirm='';return render()}
-  if(a==='oclose'){oOpen='';oConfirm='';return render()}
-  if(a==='ostar'){const x=orte.edit(id);x.prio=!x.prio;orte.touch(id,0);return render()}
-  if(a==='odel'){oConfirm=id;return render()}
-  if(a==='odelno'){oConfirm='';return render()}
-  if(a==='odelyes'){const x=clone(orte.get(id));orte.del(id);oOpen='';oConfirm='';toast(x.n+' gelöscht',()=>{orte.put(id,x,0);render()});return render()}
-}
-document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a;
-  if(a==='td2pr'){td2.pr=b.dataset.v;const el=$('#tdnew2');if(el)td2.t=el.value;render()}
-  else if(a[0]==='o')orteClick(b);});
-document.addEventListener('submit',e=>{
-  if(e.target.id==='tdform2'){e.preventDefault();addTodo2()}
-  if(e.target.id==='oform'){e.preventDefault();addOrt()}
-});
-document.addEventListener('input',e=>{const t=e.target,f=t.dataset.in;
-  if(f==='td2t')td2.t=t.value;else if(f==='td2due')td2.due=t.value;else if(f==='on')oDraft.n=t.value;else if(f==='oland')oDraft.land=t.value;
-  if(t.dataset.of){const x=orte.edit(t.dataset.id),k=t.dataset.of;if(k==='n'&&!t.value.trim())return;x[k]=k==='n'?t.value.trim():t.value;orte.touch(t.dataset.id,800)}
-});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b)return;
+  if(b.dataset.a==='td2pr'){td2.pr=b.dataset.v;const el=$('#tdnew2');if(el)td2.t=el.value;render()}});
+document.addEventListener('submit',e=>{if(e.target.id==='tdform2'){e.preventDefault();addTodo2()}});
+document.addEventListener('input',e=>{const t=e.target,f=t.dataset.in;if(f==='td2t')td2.t=t.value;else if(f==='td2due')td2.due=t.value});
 document.addEventListener('toggle',e=>{if(e.target&&e.target.id==='tddone')tdDoneOpen=e.target.open},true);
 
 /* ================= Darstellung ================= */
@@ -1432,19 +1384,26 @@ const ICONS={
   geld:'<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><circle cx="16.5" cy="14.5" r="1.4"/></svg>',
   jobs:'<svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M8.5 7V5.5A1.5 1.5 0 0 1 10 4h4a1.5 1.5 0 0 1 1.5 1.5V7M3 12.5h18"/></svg>'
 };
-const VLAB={heute:'Heute',todos:'To-dos',training:'Training',einkauf:'Einkauf',gebet:'Gebet',orte:'Orte',jobs:'Jobs'};
+const VLAB={heute:'James',todos:'To-dos',training:'Training',einkauf:'Einkauf',gebet:'Gebet',orte:'Welt',jobs:'Karriere'};
+const TIC={
+  gym:'<svg viewBox="0 0 24 24"><path d="M6.5 7.5v9M17.5 7.5v9M4 10v4M20 10v4M6.5 12h11"/></svg>',
+  swim:'<svg viewBox="0 0 24 24"><path d="M3 15c1.5 0 1.5-1 3-1s1.5 1 3 1 1.5-1 3-1 1.5 1 3 1 1.5-1 3-1 1.5 1 3 1M3 19c1.5 0 1.5-1 3-1s1.5 1 3 1 1.5-1 3-1 1.5 1 3 1 1.5-1 3-1 1.5 1 3 1"/><circle cx="15.5" cy="6.5" r="1.8"/><path d="M8 11.5l3.5-3 2.5 2.5"/></svg>',
+  run:'<svg viewBox="0 0 24 24"><circle cx="15" cy="4.8" r="1.8"/><path d="M9.5 21l2.5-5.5 3 2.5V22M7 12.5l2.5-3.5h4l2 3.5 3 1M12 15.5l1.5-6.5"/></svg>',
+  rest:'<svg viewBox="0 0 24 24"><path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z"/></svg>'
+};
 function stripHTML(){
   const t=today();
   return weekDays().map(k=>{
-    const d=parse(k);let sb='',cls='day',full=false;
-    if(view==='geld'){const s=spentDay(k);sb='<span>'+(s?money(s):'–')+'</span>'}
-    else if(view==='training'){
-      const ty=typeOf(k),p=planT(k),lg=logged(k),show=ty||p;
-      cls+=' '+(show==='free'?'rest flex':show);
-      const ic=show==='free'?'<span class="ico opt">·</span>':'<span class="ico'+(lg?'':' opt')+'">'+TE[show]+'</span>';
-      sb=ic+'<i class="'+(lg?'dot':'')+'"></i>';
-    }else{const pl=HAB.filter(h=>planned(k,h)),dn=HAB.filter(h=>planned(k,h)&&done(k,h.k)).length;full=pl.length&&dn>=pl.length;sb='<span'+(full?' class="full"':'')+'>'+(dn||k<=t?dn+'/'+pl.length:'·')+'</span>'}
-    return '<button data-day="'+k+'" class="'+cls+(k===sel?' on':'')+(k===t?' now':'')+'" aria-label="'+WDL[d.getDay()]+' '+fmtD(k)+'"><b>'+WD[d.getDay()]+'</b>'+sb+'</button>';
+    const d=parse(k);let sb='',cls='day';
+    if(view==='training'){
+      const ty=typeOf(k),lg=logged(k);
+      sb=lg&&TIC[ty]?'<span class="tic t-'+ty+'" title="'+TN[ty]+'">'+TIC[ty]+'</span>':'<span class="tic none"></span>';
+      if(lg)cls+=' lg';
+    }else{
+      const pl=HAB.filter(h=>planned(k,h));
+      sb='<span class="dots">'+pl.map(h=>'<i class="'+h.k+(done(k,h.k)?' on':'')+'"></i>').join('')+'</span>';
+    }
+    return '<button data-day="'+k+'" class="'+cls+(k===sel?' on':'')+(k===t?' now':'')+'" aria-label="'+WDL[d.getDay()]+' '+fmtD(k)+'"><small>'+WD[d.getDay()]+'</small><b>'+d.getDate()+'</b>'+sb+'</button>';
   }).join('');
 }
 let rePending=false;
@@ -1459,20 +1418,22 @@ function render(){
   $('#tabs').innerHTML=VIEWS.map(v=>'<button data-view="'+v+'" class="'+(v===view?'on':'')+'" aria-current="'+(v===view?'page':'false')+'">'+ICONS[v]+'<span>'+VLAB[v]+'</span></button>').join('');
   const noWeek=view!=='training'&&!(view==='heute'&&sub==='tag');
   const wk=weekDays();
-  $('#navrow').hidden=view!=='training'&&view!=='heute';
+  $('#navrow').hidden=view!=='training';
+  $('#jtop').innerHTML=view==='heute'&&sub==='tag'?jamesCard():'';
   $('#wk').textContent=view==='geld'&&geldR==='monat'?'Monat '+perLabel(perKey(sel)):'KW '+kw(parse(wk[0]))+' · '+fmtD(wk[0])+'–'+fmtD(wk[6]);
   $('#strip').hidden=noWeek;
   if(!noWeek)$('#strip').innerHTML=stripHTML();
-  $('#hdate').textContent=WDL[new Date().getDay()]+', '+fmtD(today());
+  $('#hdate').textContent=WDL[new Date().getDay()]+', '+new Date().getDate()+'. '+MON[new Date().getMonth()];
+  $('#ttl').textContent=view==='heute'?jamesGreeting():({todos:'To-dos',training:'Training',einkauf:'Einkauf',gebet:'Gebet',orte:'Welt',jobs:'Karriere'}[view]||'James');
   const ae=document.activeElement,keep=ae&&ae.id&&$('#view').contains(ae)?ae.id:'';let pos=null;try{pos=keep?ae.selectionStart:null}catch(e){}
   let h='';
   if(view==='heute')h=sub==='woche'?heuteWoche():heuteTag();
   else if(view==='training')h=trainingView();
   else if(view==='einkauf')h=einkaufView();
   else if(view==='gebet')h=gebetView();
-  else if(view==='jobs')h=jobsView();
+  else if(view==='jobs')h=karriereView();
   else if(view==='todos')h=todosView();
-  else if(view==='orte')h=orteView();
+  else if(view==='orte')h=weltView();
   else h=heuteTag();
   $('#view').innerHTML=h;
   if(keep){const el=document.getElementById(keep);if(el&&['INPUT','TEXTAREA'].includes(el.tagName)){el.focus();try{if(pos!=null)el.setSelectionRange(pos,pos)}catch(e){}}}
@@ -1586,7 +1547,7 @@ document.addEventListener('focusout',e=>{
 function setHTML(){
   const k=settings.get('kalender')||{};
   return '<div class="head"><h2 id="setTitle">Einstellungen</h2><button data-s="close">Fertig</button></div>'
-    +'<section class="card"><h3>Kalender</h3><p class="hint">Damit deine Termine erscheinen: In Google Kalender am Computer unter Einstellungen → dein Kalender → „Privatadresse im iCal-Format“ den Link kopieren und hier einfügen.</p>'
+    +(window.jamesSettings?jamesSettings():'')+'<section class="card"><h3>Kalender</h3><p class="hint">Damit deine Termine erscheinen: In Google Kalender am Computer unter Einstellungen → dein Kalender → „Privatadresse im iCal-Format“ den Link kopieren und hier einfügen.</p>'
     +'<input id="icsin" type="url" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" value="'+esc(k.ics||'')+'" autocapitalize="off" autocorrect="off" spellcheck="false"><div class="row"><button class="pri" data-s="ics">Speichern</button>'+(k.ics?'<button class="danger" data-s="icsdel">Entfernen</button>':'')+'</div></section>'
     +'<section class="card"><h3>Daten</h3><p class="hint">Alles liegt auf deinem eigenen Server und ist zusätzlich auf diesem Gerät gespeichert. '+esc($('#sync').textContent)+'</p><div class="row"><button data-s="sync">Jetzt synchronisieren</button><button data-s="export">Sicherung herunterladen</button></div></section>'
     +'<section class="card"><h3>Gerät</h3><p class="hint">Auf dem iPhone oder iPad: In Safari auf „Teilen“ → „Zum Home-Bildschirm“, dann startet das Tagesheft wie eine App.</p><div class="row"><button class="danger" data-s="logout">Auf diesem Gerät abmelden</button></div></section>';
@@ -1614,6 +1575,7 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#setov').hidden)setClose()});
 window.addEventListener('th-synced',e=>{if(!e.detail.ok&&e.detail.code==='unavailable'){lastErr=errMsg({code:'unavailable'});setSync()}else if(e.detail.ok&&lastErr&&/nachgetragen/.test(lastErr)){const open=ALL.reduce((n,S)=>n+Object.keys(S.pend).length,0);if(!open){lastErr='';setSync()}}});
+if(window.jamesInit)jamesInit();
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 render();
 </script>

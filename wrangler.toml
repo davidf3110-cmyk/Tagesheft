@@ -5,7 +5,7 @@ account_id = "babac4f2e3ee3e0f5f61003b32e5ffa9"
 
 # Die App-Dateien werden direkt in den Worker eingebaut (siehe worker/static.js).
 rules = [
-  { type = "Text", globs = ["**/*.html", "**/sync.js", "**/sw.js", "**/*.svg", "**/*.webmanifest"], fallthrough = true },
+  { type = "Text", globs = ["**/*.html", "**/sync.js", "**/sw.js", "**/james.js", "**/globe-lib.js", "**/*.css", "**/world.json", "**/*.svg", "**/*.webmanifest"], fallthrough = true },
   { type = "Data", globs = ["**/*.png"], fallthrough = true },
 ]
 

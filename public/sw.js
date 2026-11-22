@@ -1,6 +1,6 @@
 // Offline-Cache für die App-Hülle. Daten (/api) laufen nie über den Cache.
-const CACHE = 'tagesheft-v1';
-const SHELL = ['./', 'index.html', 'sync.js', 'icon.svg', 'manifest.webmanifest'];
+const CACHE = 'james-v2';
+const SHELL = ['./', 'index.html', 'sync.js', 'james.js', 'james.css', 'icon.svg', 'manifest.webmanifest'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));

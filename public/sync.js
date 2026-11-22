@@ -39,7 +39,7 @@
     el.id = 'login';
     el.innerHTML =
       '<form class="login-in" autocomplete="on"><img src="icon.svg" alt="" width="64" height="64">' +
-      '<h1>Tagesheft</h1><p class="hint">' + (msg || 'Gib deinen Zugangscode ein. Du brauchst ihn nur einmal pro Gerät.') + '</p>' +
+      '<h1>James</h1><p class="hint">' + (msg || 'Gib deinen Zugangscode ein. Du brauchst ihn nur einmal pro Gerät.') + '</p>' +
       '<input id="logincode" name="password" type="password" autocomplete="current-password" placeholder="xxxx-xxxx-xxxx-xxxx" aria-label="Zugangscode" autocapitalize="off" autocorrect="off" spellcheck="false">' +
       '<button class="pri" type="submit">Anmelden</button><p class="msg" id="loginmsg" hidden></p></form>';
     document.body.appendChild(el);
@@ -159,10 +159,10 @@
     pull,
     logout() { try { localStorage.removeItem(TK); localStorage.removeItem(SK); } catch (e) {} location.reload(); },
     exportAll() {
-      const blob = new Blob([JSON.stringify({ app: 'Tagesheft', stand: new Date().toISOString(), daten: st.docs })], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify({ app: 'James', stand: new Date().toISOString(), daten: st.docs })], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'tagesheft-' + new Date().toISOString().slice(0, 10) + '.json';
+      a.download = 'james-' + new Date().toISOString().slice(0, 10) + '.json';
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     },

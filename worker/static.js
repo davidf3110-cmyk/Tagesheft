@@ -7,6 +7,10 @@ import icon from '../public/icon.svg';
 import icon180 from '../public/icon-180.png';
 import icon192 from '../public/icon-192.png';
 import icon512 from '../public/icon-512.png';
+import jamesJs from '../public/james.js';
+import jamesCss from '../public/james.css';
+import globeLib from '../public/globe-lib.js';
+import world from '../public/world.json';
 
 const FILES = {
   '/': [index, 'text/html; charset=utf-8', 'no-cache'],
@@ -14,6 +18,10 @@ const FILES = {
   '/sync.js': [sync, 'text/javascript; charset=utf-8', 'no-cache'],
   '/sw.js': [sw, 'text/javascript; charset=utf-8', 'no-cache'],
   '/manifest.webmanifest': [manifest, 'application/manifest+json', 'max-age=3600'],
+  '/james.js': [jamesJs, 'text/javascript; charset=utf-8', 'no-cache'],
+  '/james.css': [jamesCss, 'text/css; charset=utf-8', 'no-cache'],
+  '/globe-lib.js': [globeLib, 'text/javascript; charset=utf-8', 'max-age=604800'],
+  '/world.json': [typeof world === 'string' ? world : JSON.stringify(world), 'application/json', 'max-age=604800'],
   '/icon.svg': [icon, 'image/svg+xml', 'max-age=86400'],
   '/icon-180.png': [icon180, 'image/png', 'max-age=86400'],
   '/icon-192.png': [icon192, 'image/png', 'max-age=86400'],
