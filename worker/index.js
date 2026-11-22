@@ -3,10 +3,12 @@
 // Alle /api-Aufrufe brauchen den Zugangscode (Secret APP_TOKEN) als Bearer-Token.
 
 import { calendarEvents } from './ical.js';
+import { speech, probe, azure, voiceOf, checkAzure, VOICES } from './tts.js';
 import { serveStatic } from './static.js';
 import { mcp } from './mcp.js';
 import { briefing, geocode, reverseGeocode, todayLocal } from './ai.js';
 
+const mp3 = (buf) => new Response(buf, { headers: { 'content-type': 'audio/mpeg', 'content-disposition': 'inline; filename="james.mp3"', 'cache-control': 'no-store', 'content-length': String(buf.byteLength) } });
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
     status,
@@ -58,7 +60,7 @@ async function api(req, env, url) {
   // Der Wecker-Kurzbefehl darf nur das Briefing abrufen, mit eigenem Code (?k=).
   let weck = false;
   const wkKey = url.searchParams.get('k');
-  if (p === '/api/briefing' && wkKey) {
+  if ((p === '/api/briefing' || p === '/api/briefing.mp3' || p === '/api/stimme/probe') && wkKey) {
     const r = await env.DB.prepare('SELECT v FROM secrets WHERE k=?1').bind('weckcode').first();
     weck = !!(r && r.v && r.v.length === wkKey.length && r.v === wkKey);
   }
@@ -150,6 +152,30 @@ async function api(req, env, url) {
     }
   }
 
+  // Morgen-Briefing als MP3 mit der Microsoft-Stimme (für den Kurzbefehl nach dem Wecker).
+  if (p === '/api/briefing.mp3' && req.method === 'GET') {
+    const doc = await briefing(env, { events: await todaysEvents(env) });
+    try { return mp3(await speech(env, doc.text)); }
+    catch (e) { return json({ error: String(e.message).startsWith('nokey') ? 'nokey' : 'tts_failed', message: String(e.message).slice(0, 200) }, 503); }
+  }
+  if (p === '/api/stimme/probe' && req.method === 'GET') {
+    try { return mp3(await probe(env, url.searchParams.get('v') || '')); }
+    catch (e) { return json({ error: 'tts_failed', message: String(e.message).slice(0, 200) }, 503); }
+  }
+  if (p === '/api/stimme' && req.method === 'GET') {
+    const a = await azure(env);
+    return json({ aktiv: !!a, region: a ? a.region : '', voice: await voiceOf(env), voices: VOICES });
+  }
+  if (p === '/api/stimme' && req.method === 'POST') {
+    if (weck) return json({ error: 'unauthorized' }, 401);
+    const b = await req.json();
+    if (!b.key) { await env.DB.prepare('DELETE FROM secrets WHERE k=?1').bind('azure').run(); return json({ aktiv: false }); }
+    const key = String(b.key).trim(), region = String(b.region || '').trim().toLowerCase().replace(/\s+/g, '');
+    if (!(await checkAzure(key, region))) return json({ error: 'Schlüssel oder Region stimmt nicht' }, 400);
+    await env.DB.prepare('INSERT OR REPLACE INTO secrets (k,v) VALUES (?1,?2)').bind('azure', JSON.stringify({ key, region })).run();
+    return json({ aktiv: true });
+  }
+
   // Morgen-Briefing. format=text liefert reinen Text (für den Kurzbefehl zum Vorlesen).
   if (p === '/api/briefing' && req.method === 'GET') {
     const events = await todaysEvents(env);
@@ -187,11 +213,16 @@ async function todaysEvents(env) {
 export default {
   // Jeden Morgen um 5:15 Uhr (UTC) das Briefing vorbereiten, damit es beim Wecken sofort da ist.
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(todaysEvents(env).then((events) => briefing(env, { fresh: true, events })).catch(() => {}));
+    ctx.waitUntil(todaysEvents(env).then((events) => briefing(env, { fresh: true, events })).then((d) => speech(env, d.text)).catch(() => {}));
   },
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     if (url.pathname.startsWith('/mcp/')) {
+      // Schreibt Claude den Tagesbericht, die Sprachdatei gleich vorbereiten – dann ist sie beim Wecken sofort da.
+      if (req.method === 'POST') {
+        const body = await req.clone().text().catch(() => '');
+        if (/"reports"/.test(body) && /tag-\d{4}/.test(body)) ctx.waitUntil(new Promise((r) => setTimeout(r, 4000)).then(() => todaysEvents(env)).then((events) => briefing(env, { events })).then((d) => speech(env, d.text)).catch(() => {}));
+      }
       try { return await mcp(req, env, url.pathname.slice(5).replace(/\/$/, '')); }
       catch (e) { return json({ jsonrpc: '2.0', id: null, error: { code: -32603, message: 'Interner Fehler' } }, 500); }
     }

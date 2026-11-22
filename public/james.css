@@ -403,3 +403,5 @@ header{display:flex;align-items:center;justify-content:flex-start;gap:14px;flex-
 
 .hc .sec{padding:10px 0}.hc .sec:first-child{padding-top:0;border-top:0}.hc .sec:last-child{padding-bottom:0}
 .hc-wx{margin:4px 0 0;display:flex;align-items:baseline;gap:8px}.hc-wx span{font-size:20px;align-self:center}.hc-wx b{font-size:20px;font-weight:600;letter-spacing:-.02em}
+
+.vlist{display:grid;grid-template-columns:1fr 1fr;gap:8px}.vlist button{display:grid;gap:2px;text-align:left;padding:10px 12px;border-radius:14px}.vlist button small{font-size:12px;opacity:.65;font-weight:400}.vlist button.on{outline:2px solid var(--gold,#E8CF9F)}

@@ -51,23 +51,36 @@ function openClaude(scope, ask) {
 const openChat = openClaude;
 
 /* ---------- Einstellungen: James ---------- */
-function stLoad() { if (!J.weckCode && !J.stLoad) { J.stLoad = true; TH.call('/wecker/code').then((c) => { J.weckCode = c.code; softRender(); }).catch(() => {}).finally(() => { J.stLoad = false; }); } }
-// Morgen-Briefing nach dem Uhr-App-Wecker: Kurzbefehl liest es mit der Siri-Stimme vor.
+function stLoad() {
+  if (J.stLoaded || J.stLoad) return; J.stLoad = true;
+  Promise.all([TH.call('/wecker/code'), TH.call('/stimme')]).then(([c, st]) => { J.weckCode = c.code; J.st = st; J.stLoaded = true; softRender(); }).catch(() => {}).finally(() => { J.stLoad = false; });
+}
+// Morgen-Briefing nach dem Uhr-App-Wecker: Kurzbefehl spielt die Microsoft-Stimme ab (oder liest mit Siri vor).
 function briefSetup() {
   stLoad();
-  const u = location.origin + '/api/briefing?format=text&k=' + (J.weckCode || '…');
-  const cp = J.weckCode ? '<div class="row"><button class="pri" data-j="copy" data-v="' + esc(u) + '">Adresse kopieren</button></div>' : '';
-  return '<section class="card wk-setup"><h3>Morgen-Briefing nach dem Wecker</h3>'
-    + '<p class="hint">Wecker wie immer in der Uhr-App stellen. Wenn du ihn stoppst, liest Siri dir vor, was heute ansteht – mit der Losung.</p>'
-    + '<p class="lbl" style="margin:10px 0 0">Einmal einrichten</p><ol>'
-    + '<li>Diese Adresse kopieren:</li></ol>' + cp + '<ol start="2">'
-    + '<li>App <b>Kurzbefehle</b> → unten <b>Automation</b> → oben rechts <b>+</b>.</li>'
-    + '<li><b>Wecker</b> wählen → <b>Wird gestoppt</b> und deinen Wecker (oder „Beliebig“) → <b>Sofort ausführen</b> → <b>Weiter</b> → <b>Neue leere Automation</b>.</li>'
-    + '<li>Ins Suchfeld <b>URL</b> tippen → <b>Inhalte von URL abrufen</b>. Auf das blaue Wort „URL“ tippen und die Adresse einfügen.</li>'
-    + '<li>Ins Suchfeld <b>Sprechen</b> tippen → <b>Text sprechen</b>.</li>'
-    + '<li>Bei „Text sprechen“ auf den Pfeil <b>›</b> tippen → <b>Stimme</b> → deine Siri-Stimme wählen. Fehlt sie: Einstellungen → Bedienungshilfen → Gesprochene Inhalte → Stimmen → Deutsch → laden.</li>'
-    + '<li>Oben rechts <b>Fertig</b>.</li></ol>'
-    + '<p class="hint">Heißt ein Punkt bei dir etwas anders, such einfach nach dem fett gedruckten Wort. Testen: Wecker auf in 1 Minute, Handy sperren, „Stoppen“ tippen.</p></section>';
+  const st = J.st || {}, on = !!st.aktiv, code = J.weckCode || '…';
+  const u = location.origin + (on ? '/api/briefing.mp3?k=' : '/api/briefing?format=text&k=') + code;
+  const cur = (settings.get('stimme') || {}).voice || st.voice || 'de-DE-ConradNeural';
+  let h = '<section class="card wk-setup"><h3>Morgen-Briefing nach dem Wecker</h3>'
+    + '<p class="hint">Wecker wie immer in der Uhr-App stellen. Wenn du ihn stoppst, spricht James, was heute ansteht.</p>';
+  h += '<p class="lbl" style="margin:10px 0 0">Stimme</p>';
+  if (on) {
+    h += '<p class="hint">Microsoft-Stimme ist aktiv (kostenlos, Region ' + esc(st.region || '') + '). Antippen zum Probehören und Auswählen:</p><div class="vlist">'
+      + (st.voices || []).map(([id, n, d]) => '<button data-j="stvoice" data-v="' + id + '" class="' + (id === cur ? 'on' : '') + '"><b>' + (J.stPlay === id ? '■ ' : '▶ ') + esc(n) + '</b><small>' + esc(d) + '</small></button>').join('') + '</div>'
+      + '<div class="row"><button class="sm" data-j="stoff">Microsoft-Stimme entfernen</button></div>';
+  } else {
+    h += '<p class="hint">Für eine natürliche Stimme statt Siri: Schlüssel und Region aus Microsoft Azure (Speech-Dienst, Tarif „Free F0“) hier eintragen. Der Schlüssel bleibt nur auf deinem James-Server.</p>'
+      + '<label class="f">Schlüssel<input id="stkey" type="password" autocomplete="off" placeholder="Schlüssel 1"></label>'
+      + '<label class="f">Region<input id="streg" autocomplete="off" placeholder="z. B. westeurope" value="westeurope"></label>'
+      + '<div class="row"><button class="pri" data-j="stset">Speichern</button></div>';
+  }
+  h += '<p class="lbl" style="margin:10px 0 0">Kurzbefehl (einmal einrichten)</p><ol>'
+    + '<li>Diese Adresse kopieren:</li></ol>' + (J.weckCode ? '<div class="row"><button class="pri" data-j="copy" data-v="' + esc(u) + '">Adresse kopieren</button></div>' : '') + '<ol start="2">'
+    + '<li>Kurzbefehle → <b>Automation</b> → deine Wecker-Automation öffnen.</li>'
+    + '<li>Bei <b>Inhalte von URL abrufen</b> die neue Adresse einfügen.</li>'
+    + (on ? '<li>„Text sprechen“ löschen und stattdessen eine Aktion zum <b>Abspielen</b> der Datei hinzufügen (Suchwort „Ton“ oder „abspielen“).</li>' : '<li>Danach <b>Text sprechen</b> mit deiner Stimme.</li>')
+    + '</ol>' + (on ? '<p class="hint">Unsicher, welche Aktion? Schick Claude einen Screenshot der Suchergebnisse.</p>' : '') + '</section>';
+  return h;
 }
 function jamesSettings() {
   return themeSettings() + briefSetup() + '<section class="card"><h3>Claude-Connector</h3><p class="hint">Damit Claude in der Claude-App und in geplanten Aufgaben direkt mit James arbeitet – über dein Abo, ohne Zusatzkosten. In Claude: Einstellungen → Connectors → Eigenen Connector hinzufügen → Name „James“, diese Adresse einfügen. Die Adresse ist geheim wie ein Passwort.</p>'
@@ -596,6 +609,26 @@ document.addEventListener('click', (e) => {
   const a = b.dataset.j;
   if (a === 'mcpshow') { TH.call('/mcp/code').then((r) => { J.mcpUrl = r.url; render(); }).catch(() => toast('Gerade nicht möglich.')); return; }
   if (a === 'theme') { jSetTheme(b.dataset.v); render(); return; }
+  if (a === 'stset') {
+    const key = (document.getElementById('stkey') || {}).value || '', region = (document.getElementById('streg') || {}).value || '';
+    if (!key.trim() || !region.trim()) return toast('Bitte Schlüssel und Region eintragen.');
+    b.textContent = 'Prüfe …';
+    TH.call('/stimme', { method: 'POST', body: JSON.stringify({ key: key.trim(), region: region.trim() }) })
+      .then(() => { J.stLoaded = false; stLoad(); toast('Microsoft-Stimme aktiv'); })
+      .catch(() => { b.textContent = 'Speichern'; toast('Schlüssel oder Region stimmt nicht.'); });
+    return;
+  }
+  if (a === 'stoff') { TH.call('/stimme', { method: 'POST', body: JSON.stringify({ key: '' }) }).then(() => { J.stLoaded = false; stLoad(); }); return; }
+  if (a === 'stvoice') {
+    const v = b.dataset.v, au = J.stAu || (J.stAu = new Audio());
+    const w = settings.edit('stimme'); w.voice = v; settings.touch('stimme', 0);
+    if (J.stPlay === v && !au.paused) { au.pause(); J.stPlay = ''; return render(); }
+    J.stPlay = v; render();
+    au.src = '/api/stimme/probe?v=' + encodeURIComponent(v) + '&k=' + J.weckCode;
+    au.onended = au.onerror = () => { J.stPlay = ''; softRender(); };
+    au.play().catch(() => { J.stPlay = ''; softRender(); toast('Hörprobe gerade nicht möglich.'); });
+    return;
+  }
   if (a === 'qtrain') {
     sel = today(); setView('training');
     if (!typeOf(sel) && planT(sel) !== 'free') { const p = planT(sel); setTrainType(p === 'gym' ? 'g' + nextTpl(sel) : p); }
