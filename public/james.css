@@ -400,3 +400,6 @@ header{display:flex;align-items:center;justify-content:flex-start;gap:14px;flex-
 #night .n-big small{font-size:13px;font-weight:500;opacity:.7}
 .n-text{font-size:19px;line-height:1.55;color:#F3E6CC;text-align:left;max-height:50vh;overflow:auto}
 .wk-night{background:linear-gradient(160deg,color-mix(in srgb,var(--gold) 14%,var(--card)),var(--card) 65%)}
+
+.hc .sec{padding:10px 0}.hc .sec:first-child{padding-top:0;border-top:0}.hc .sec:last-child{padding-bottom:0}
+.hc-wx{margin:4px 0 0;display:flex;align-items:baseline;gap:8px}.hc-wx span{font-size:20px;align-self:center}.hc-wx b{font-size:20px;font-weight:600;letter-spacing:-.02em}

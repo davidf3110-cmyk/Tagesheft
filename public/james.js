@@ -30,7 +30,6 @@ function jamesCard() {
   const open = !!J.briefOpen;
   const sub = J.briefBusy ? 'Stellt dein Briefing zusammen …' : open ? 'Briefing zuklappen' : 'Antippen für dein Briefing';
   return '<section class="jc"><button class="jc-top jc-btn" data-j="briefopen" aria-expanded="' + open + '"><span class="orb' + (J.briefBusy ? ' busy' : '') + '"></span><div><b>' + esc(jamesGreeting()) + '</b><small>' + sub + '</small></div><span class="jc-chev" aria-hidden="true">' + (open ? '⌃' : '⌄') + '</span></button>'
-    + (wx ? '<div class="jc-wx"><span>' + wxIcon(w) + '</span><b>' + esc(w.lo + '–' + w.hi + ' °C') + '</b>' + (w.t ? '<small>' + esc(w.t) + '</small>' : '') + '</div>' : '')
     + (open && b ? '<p>' + esc(b.text) + '</p>' : '')
     + '<form class="ask" id="jask" autocomplete="off"><input id="jaskin" placeholder="Frag James …" aria-label="Frag James" enterkeyhint="send"><button type="submit" aria-label="Senden">↑</button></form></section>';
 }
@@ -534,9 +533,9 @@ function jamesQuick() {
   const k = today(), lg = logged(k), ty = typeOf(k), p = planT(k);
   let label, sub;
   if (lg) { label = doneLine(k).replace(/^\S+\s/, ''); sub = 'Heute erledigt ✓'; }
-  else if (ty) { label = 'Training weiter eintragen'; sub = '(' + chosenLine(k).replace(/^\S+\s/, '') + ')'; }
+  else if (ty) { label = 'Training eintragen'; sub = '(heute: ' + chosenLine(k).replace(/^\S+\s/, '') + ')'; }
   else if (p === 'free') { label = 'Training eintragen'; sub = '(heute frei laut Plan)'; }
-  else { label = 'Training eintragen'; sub = '(heute: ' + recLine(k).replace(/^\S+\s/, '') + ')'; }
+  else { label = 'Training eintragen'; sub = '(planmäßig: ' + recLine(k).replace(/^\S+\s/, '') + ')'; }
   const t = lg ? ty : (ty || (p === 'free' ? '' : p));
   return '<button class="jq' + (lg ? ' done' : '') + '" data-j="qtrain"><span class="tic ' + (t && TIC[t] ? 't-' + t : 'none') + '">' + (t && TIC[t] ? TIC[t] : '') + '</span><span><b>' + esc(label) + '</b><small>' + esc(sub) + '</small></span><span class="chev">›</span></button>';
 }

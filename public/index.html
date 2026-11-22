@@ -800,20 +800,20 @@ function heuteTag(){
       return '<button class="hb '+hb.k+(on?' on':' plan')+'" data-a="hab" data-h="'+hb.k+'" aria-pressed="'+on+'"><span class="e" aria-hidden="true">'+hb.e+'</span><b>'+hb.n+'</b><small>'+(on?(au?'✓ Ampel':'✓'):(ct||'offen'))+'</small></button>';
     }).join('')+'</div>';
   h+='</section>';
-  h+=berichtCard(k);
   return h;
 }
 const isWE=k=>{const g=parse(k).getDay();return g===0||g===6};
-function berichtCard(k){
-  const t=today(),list=tdList(k),later=tdLater(k),openCnt=todos.all().filter(([,x])=>x.st!=='done').length;
-  let h='<section class="card"><div class="head"><h2>To-dos</h2><span class="hint">'+openCnt+' offen</span></div>';
-  if(!todos.ready&&MODE==='db'&&!list.length)h+='<p class="hint">Lade …</p>';
-  else if(!list.length)h+='<p class="hint">'+(k===t?'Heute nichts fällig.':'Nichts fällig.')+'</p>';
-  else h+='<div>'+list.map(([id,x])=>tdRow(id,x,k)).join('')+'</div>';
-  if(later.length)h+='<details class="more" id="tdlater"'+(tdLaterOpen?' open':'')+'><summary>Später und ohne Datum ('+later.length+')</summary><div>'+later.map(([id,x])=>tdRow(id,x,k)).join('')+'</div></details>';
-  h+='<form class="add" id="tdform" autocomplete="off"><input id="tdnew" placeholder="Neues To-do'+(k===t?'':' für '+fmtD(k))+'" value="'+esc(tdDraft)+'" data-in="td" aria-label="Neues To-do"><button class="pri plus" type="submit" aria-label="To-do hinzufügen">+</button></form></section>';
-  h+='<section class="card"><div class="head"><h2>Termine</h2></div>'+termineSec(k).replace('<div class="sec"><span class="lbl">Termine</span>','<div>')+'</section>';
-  return h;
+// Startseite: Wetter, To-dos (heute + nächste 7 Tage) und Termine – knapp untereinander.
+function heuteCard(){
+  const t=today(),lim=iso(addD(parse(t),7));
+  const b=reports.get('james-'+t),r=reports.get('tag-'+t),w=(b&&b.wetter)||(r&&r.wetter);
+  let h='<section class="card hc">';
+  h+='<div class="sec"><span class="lbl">Wetter</span>'+(w&&w.lo!=null?'<p class="hc-wx"><span>'+wxIcon(w)+'</span><b>'+esc(w.lo+'–'+w.hi+' °C')+'</b>'+(w.t?' <span class="mute">'+esc(w.t)+'</span>':'')+'</p>':'<p class="hint">Kommt mit dem Briefing am Morgen.</p>')+'</div>';
+  const due=tdList(t),next=todos.all().filter(([,x])=>x.st!=='done'&&x.due&&x.due>t&&x.due<=lim).sort((a,c)=>a[1].due.localeCompare(c[1].due));
+  h+='<div class="sec"><span class="lbl">To-dos heute</span>'+(due.length?'<div>'+due.map(([id,x])=>tdRow(id,x,t)).join('')+'</div>':'<p class="hint">Heute nichts fällig.</p>');
+  if(next.length)h+='<span class="lbl" style="display:block;margin-top:10px">Nächste 7 Tage</span><div>'+next.map(([id,x])=>tdRow(id,x,t)).join('')+'</div>';
+  h+='</div>'+termineSec(t);
+  return h+'</section>';
 }
 function calState(s){
   if(!mcpReady)return '<p class="hint">Verbinde …</p>';
@@ -1398,7 +1398,7 @@ function render(){
   const noWeek=view!=='training'&&!(view==='heute'&&sub==='tag');
   const wk=weekDays();
   $('#navrow').hidden=view!=='training';
-  $('#jtop').innerHTML=view==='heute'&&sub==='tag'?jamesCard()+jamesQuick()+jamesTrain():'';
+  $('#jtop').innerHTML=view==='heute'&&sub==='tag'?jamesCard()+heuteCard()+jamesQuick()+jamesTrain():'';
   $('#wk').textContent=view==='geld'&&geldR==='monat'?'Monat '+perLabel(perKey(sel)):'KW '+kw(parse(wk[0]))+' · '+fmtD(wk[0])+'–'+fmtD(wk[6]);
   $('#strip').hidden=noWeek;
   if(!noWeek)$('#strip').innerHTML=stripHTML();
