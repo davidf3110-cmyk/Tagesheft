@@ -19,3 +19,7 @@ enabled = true
 
 [triggers]
 crons = ["15 5 * * *"]
+
+[[kv_namespaces]]
+binding = "KV"
+id = "107021f37aef4e46a53df5062c921a75"

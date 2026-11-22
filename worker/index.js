@@ -4,6 +4,7 @@
 
 import { calendarEvents } from './ical.js';
 import { serveStatic } from './static.js';
+import { mcp } from './mcp.js';
 import { chat, replanCareer, briefing, geocode, reverseGeocode, getKey, setKey, todayLocal } from './ai.js';
 
 const json = (data, status = 200) =>
@@ -57,11 +58,23 @@ async function api(req, env, url) {
   // Der Wecker-Kurzbefehl darf nur das Briefing abrufen, mit eigenem Code (?k=).
   let weck = false;
   const wkKey = url.searchParams.get('k');
-  if (p === '/api/briefing' && wkKey) {
+  if ((p === '/api/briefing' || p === '/api/radio') && wkKey) {
     const r = await env.DB.prepare('SELECT v FROM secrets WHERE k=?1').bind('weckcode').first();
     weck = !!(r && r.v && r.v.length === wkKey.length && r.v === wkKey);
   }
   if (!weck && !authorized(req, env)) return json({ error: 'unauthorized' }, 401);
+
+  if (p === '/api/mcp/code' && req.method === 'GET') {
+    if (weck) return json({ error: 'unauthorized' }, 401);
+    let r = await env.DB.prepare('SELECT v FROM secrets WHERE k=?1').bind('mcpcode').first();
+    if (!r) {
+      const a = 'abcdefghjkmnpqrstuvwxyz23456789', b = crypto.getRandomValues(new Uint8Array(32));
+      const v = Array.from(b, (x) => a[x % a.length]).join('');
+      await env.DB.prepare('INSERT INTO secrets (k,v) VALUES (?1,?2)').bind('mcpcode', v).run();
+      r = { v };
+    }
+    return json({ url: url.origin + '/mcp/' + r.v });
+  }
 
   if (p === '/api/wecker/code' && req.method === 'GET') {
     let r = await env.DB.prepare('SELECT v FROM secrets WHERE k=?1').bind('weckcode').first();
@@ -168,6 +181,28 @@ async function api(req, env, url) {
     return json(doc);
   }
 
+  if (p === '/api/radio/prepare' && req.method === 'POST') {
+    if (weck) return json({ error: 'unauthorized' }, 401);
+    await prepareRadio(env, true);
+    return json({ ok: true });
+  }
+
+  // Webradio-Ausschnitt für den Wecker. Morgens vorab aufgenommen, sonst live.
+  if (p === '/api/radio' && req.method === 'GET') {
+    const cfg = (await getDoc(env, 'settings', 'wecker')) || {};
+    const sec = Math.max(5, Math.min(180, Number(url.searchParams.get('sec')) || cfg.sec || 30));
+    const key = url.searchParams.get('s') || cfg.sender || 'srf3';
+    const live = url.searchParams.get('live') === '1';
+    const t = todayLocal();
+    if (!live) {
+      const { value, metadata: m } = await env.KV.getWithMetadata('radio', 'arrayBuffer');
+      if (value && m && m.d === t && m.s === key && m.sec === sec) return new Response(value, { headers: AUDIO });
+    }
+    const clip = await radioClip(key, sec);
+    if (!clip) return json({ error: 'radio_failed' }, 502);
+    return new Response(clip, { headers: AUDIO });
+  }
+
   if (p === '/api/geo/rev' && req.method === 'GET') {
     const lat = Number(url.searchParams.get('lat')), lon = Number(url.searchParams.get('lon'));
     if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return json({ error: 'invalid_argument' }, 400);
@@ -181,6 +216,41 @@ async function api(req, env, url) {
   }
 
   return json({ error: 'not_found' }, 404);
+}
+
+export const RADIO = {
+  srf3: { n: 'Radio SRF 3', url: 'https://stream.srg-ssr.ch/m/drs3/mp3_128' },
+  srf1: { n: 'Radio SRF 1', url: 'https://stream.srg-ssr.ch/m/drs1/mp3_128' },
+  swisspop: { n: 'Radio Swiss Pop', url: 'https://stream.srg-ssr.ch/m/rsp/mp3_128' },
+  swissjazz: { n: 'Radio Swiss Jazz', url: 'https://stream.srg-ssr.ch/m/rsj/mp3_128' },
+  swissclassic: { n: 'Radio Swiss Classic', url: 'https://stream.srg-ssr.ch/m/rsc_de/mp3_128' },
+  swr3: { n: 'SWR3', url: 'https://liveradio.swr.de/sw282p3/swr3/play.mp3' },
+};
+
+const AUDIO = { 'content-type': 'audio/mpeg', 'content-disposition': 'inline; filename="radio.mp3"', 'cache-control': 'no-store' };
+async function radioClip(key, sec) {
+  const src = RADIO[key] ? RADIO[key].url : /^https:\/\//.test(key) ? key : RADIO.srf3.url;
+  try {
+    const r = await fetch(src, { headers: { 'user-agent': 'James-Wecker/1.0' } });
+    if (!r.ok || !r.body) return null;
+    const kbps = Number(r.headers.get('icy-br')) || 128;
+    const want = Math.round(sec * kbps * 1000 / 8);
+    const reader = r.body.getReader(), parts = [];
+    let got = 0;
+    while (got < want) { const { done, value } = await reader.read(); if (done) break; parts.push(value); got += value.length; }
+    reader.cancel().catch(() => {});
+    const out = new Uint8Array(got); let o = 0;
+    for (const v of parts) { out.set(v, o); o += v.length; }
+    return out;
+  } catch (e) { return null; }
+}
+async function prepareRadio(env, force) {
+  const cfg = (await getDoc(env, 'settings', 'wecker')) || {};
+  if (!force && (cfg.musik || 'radio') !== 'radio') return;
+  const key = cfg.sender || 'srf3', sec = cfg.sec || 30;
+  const clip = await radioClip(key, sec);
+  if (!clip) return;
+  await env.KV.put('radio', clip, { metadata: { d: todayLocal(), s: key, sec }, expirationTtl: 60 * 60 * 30 });
 }
 
 async function todaysEvents(env) {
@@ -198,9 +268,14 @@ export default {
   // Jeden Morgen um 5:15 Uhr (UTC) das Briefing vorbereiten, damit es beim Wecken sofort da ist.
   async scheduled(event, env, ctx) {
     ctx.waitUntil(todaysEvents(env).then((events) => briefing(env, { useAi: true, fresh: true, events })).catch(() => {}));
+    ctx.waitUntil(prepareRadio(env).catch(() => {}));
   },
   async fetch(req, env) {
     const url = new URL(req.url);
+    if (url.pathname.startsWith('/mcp/')) {
+      try { return await mcp(req, env, url.pathname.slice(5).replace(/\/$/, '')); }
+      catch (e) { return json({ jsonrpc: '2.0', id: null, error: { code: -32603, message: 'Interner Fehler' } }, 500); }
+    }
     if (url.pathname.startsWith('/api/')) {
       try {
         return await api(req, env, url);

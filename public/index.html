@@ -753,7 +753,6 @@ function tdList(k){
     const isDone=x.st==='done';
     if(k===t){
       if(!isDone&&x.due&&x.due<=k)out.push([id,x]);
-      else if(isDone&&x.done===k)out.push([id,x]);
     }else if(x.due===k)out.push([id,x]);
   });
   return out.sort((a,b)=>((a[1].st==='done')-(b[1].st==='done'))||(PR[a[1].pr]??1)-(PR[b[1].pr]??1)||(a[1].due||'').localeCompare(b[1].due||'')||String(a[1].t).localeCompare(String(b[1].t)));
@@ -1349,7 +1348,6 @@ function todosView(){
   const dn=todos.all().filter(([,x])=>x.st==='done'&&(x.done||'')>=lim).sort((a,b)=>String(b[1].done).localeCompare(String(a[1].done)));
   let h='<section class="card"><div class="head"><h2>To-dos</h2><span class="hint">'+open.length+' offen</span></div>'
     +'<form class="add" id="tdform2" autocomplete="off"><input id="tdnew2" placeholder="Neues To-do" value="'+esc(td2.t)+'" data-in="td2t" aria-label="Neues To-do"><button class="pri plus" type="submit" aria-label="Hinzufügen">+</button></form>'
-    +'<div class="chips">'+[['heute','Heute',today()],['morgen','Morgen',iso(addD(new Date(),1))],['we','Wochenende',iso(addD(monday(new Date()),5))<today()?today():iso(addD(monday(new Date()),5))],['woche','Nächste Woche',iso(addD(monday(new Date()),7))]].map(([k,l,v])=>'<button data-a="td2d" data-v="'+v+'" class="'+(td2.due===v?'on':'')+'">'+l+'</button>').join('')+'<button data-a="td2d" data-v="" class="'+(!td2.due?'on':'')+'">Ohne Datum</button></div>'
     +'<div class="addmeta"><label class="row" style="gap:6px">Fällig <input type="date" id="tddue2" value="'+esc(td2.due)+'" data-in="td2due"></label>'
     +'<div class="chips">'+['Hoch','Mittel','Niedrig'].map(p=>'<button data-a="td2pr" data-v="'+p+'" class="'+(td2.pr===p?'on':'')+'" aria-pressed="'+(td2.pr===p)+'">'+p+'</button>').join('')+'</div></div></section>';
   if(!todos.ready&&!open.length)return h+'<p class="hint">Lade …</p>';
@@ -1358,7 +1356,6 @@ function todosView(){
     h+='<section class="card"><div class="head"><div class="lbl'+(n==='Überfällig'?' bad':'')+'">'+n+'</div><span class="hint">'+L.length+'</span></div><div>'+L.sort(by).map(([id,x])=>tdRow(id,x,t)).join('')+'</div></section>';
   });
   if(!open.length)h+='<p class="hint">Nichts offen. 🎉</p>';
-  if(dn.length)h+='<details class="card more" id="tddone"'+(tdDoneOpen?' open':'')+'><summary>Erledigt, letzte 14 Tage ('+dn.length+')</summary><div>'+dn.map(([id,x])=>tdRow(id,x,t)).join('')+'</div></details>';
   return h;
 }
 function addTodo2(){
@@ -1463,7 +1460,7 @@ document.addEventListener('click',e=>{
     case 'cell':return toggleHabit(b.dataset.k,b.dataset.h);
     case 'calload':return loadCalOnce();
     case 'calretry':if(mcp)mcp.invalidate(CAL_S).catch(()=>{});return;
-    case 'tdck':{const x=todos.get(b.dataset.id);if(x)setTodoDone(b.dataset.id,x.st!=='done');return}
+    case 'tdck':{const id=b.dataset.id,x=todos.get(id);if(!x)return;if(x.st!=='done'){const r=b.closest('.td');if(r&&!r.classList.contains('fly')){r.classList.add('fly');b.classList.add('on');b.textContent='✓';setTimeout(()=>setTodoDone(id,true),620)}}else setTodoDone(id,false);return}
     case 'tdopen':tdOpen=tdOpen===b.dataset.id?'':b.dataset.id;tdConfirm='';return render();
     case 'tdclose':tdOpen='';tdConfirm='';return render();
     case 'tdpr':{const x=todos.edit(b.dataset.id);x.pr=b.dataset.v;todos.touch(b.dataset.id,0);return render()}
