@@ -207,7 +207,7 @@ export async function briefing(env, { fresh = false, events = null } = {}) {
 
   // Wetter
   const w = W || (rep && rep.wetter);
-  if (w) S.push(`Draußen ${w.lo} bis ${w.hi} Grad, ${String(w.t || '').toLowerCase()}${W && W.regen >= 50 ? '. Nimm besser einen Schirm mit' : ''}.`);
+  if (w) S.push(`Draußen ${w.lo} bis ${w.hi} Grad${w.t ? ' und ' + w.t : ''}${W && W.regen >= 50 ? '. Nimm besser einen Schirm mit' : ''}.`);
 
   // Termine: aus dem Tagesbericht (Google Kalender), sonst aus dem iCal-Link
   let tm = (rep && Array.isArray(rep.termine) ? rep.termine : null);
