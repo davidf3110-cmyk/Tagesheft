@@ -344,7 +344,7 @@ input:focus,textarea:focus,select:focus{background:var(--card);border-color:var(
 .td.fly .ck{background:var(--gold)!important;border-color:var(--gold)!important;color:#1A1407!important;animation:tdpop .25s var(--ease)}
 @keyframes tdstrike{to{background-size:100% 2px}}
 @keyframes tdpop{50%{transform:scale(1.25)}}
-@keyframes tdfly{0%,38%{transform:none;opacity:1;max-height:120px}100%{transform:translateX(115%) rotate(3deg);opacity:0;max-height:0;padding-top:0;padding-bottom:0;margin:0;border-width:0}}
+@keyframes tdfly{0%,38%{transform:none;opacity:1;max-height:120px}100%{transform:translateX(40px);opacity:0;max-height:0;padding-top:0;padding-bottom:0;margin:0;border-width:0}}
 .seg2.three{grid-template-columns:repeat(3,1fr)}
 .mcpurl{display:block;background:var(--soft);border-radius:10px;padding:8px 10px;font-size:12.5px;word-break:break-all}
 
@@ -409,3 +409,5 @@ header{display:flex;align-items:center;justify-content:flex-start;gap:14px;flex-
 /* To-do-Animation: nichts darf seitlich überstehen, sonst zoomt iOS kurz heraus */
 html,body{overflow-x:clip}
 .card,.hc,#view,#jtop{overflow-x:clip}
+/* Listen mit To-dos schneiden hart ab (funktioniert auch in älterem iOS-Safari) */
+div:has(> .td),.hc,.hc .sec{overflow:hidden}
