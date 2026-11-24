@@ -405,3 +405,7 @@ header{display:flex;align-items:center;justify-content:flex-start;gap:14px;flex-
 .hc-wx{margin:4px 0 0;display:flex;align-items:baseline;gap:8px}.hc-wx span{font-size:20px;align-self:center}.hc-wx b{font-size:20px;font-weight:600;letter-spacing:-.02em}
 
 .vlist{display:grid;grid-template-columns:1fr 1fr;gap:8px}.vlist button{display:grid;gap:2px;text-align:left;padding:10px 12px;border-radius:14px}.vlist button small{font-size:12px;opacity:.65;font-weight:400}.vlist button.on{outline:2px solid var(--gold,#E8CF9F)}
+
+/* To-do-Animation: nichts darf seitlich überstehen, sonst zoomt iOS kurz heraus */
+html,body{overflow-x:clip}
+.card,.hc,#view,#jtop{overflow-x:clip}
